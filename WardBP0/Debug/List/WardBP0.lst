@@ -1,0 +1,463 @@
+###############################################################################
+#                                                                             #
+#     IAR Assembler V6.50.1.967/W32  for MSP430 17/Sep/2018  21:17:10         #
+#     Copyright 1996-2016 IAR Systems AB.                                     #
+#                                                                             #
+#           Target option =  MSP430                                           #
+#           Source file   =  C:\Users\PikesPlace\Documents\ECE 3362\WardBP0\WardBP0.s43#
+#           List file     =  C:\Users\PikesPlace\Documents\ECE 3362\WardBP0\Debug\List\WardBP0.lst#
+#           Object file   =  C:\Users\PikesPlace\Documents\ECE 3362\WardBP0\Debug\Obj\WardBP0.r43#
+#           Command line  =  C:\Users\PikesPlace\Documents\ECE 3362\WardBP0\WardBP0.s43 #
+#                            -OC:\Users\PikesPlace\Documents\ECE 3362\WardBP0\Debug\Obj #
+#                            -s+ -M<> -w+                                     #
+#                            -LC:\Users\PikesPlace\Documents\ECE 3362\WardBP0\Debug\List #
+#                            -t8 -x -r -D__MSP430G2553__                      #
+#                            -IC:\Program Files (x86)\IAR Systems\Embedded Workbench 7.4\430\INC\ #
+#                                                                             #
+###############################################################################
+
+      1    000200              ;-----------------------------------------------
+                               --------------------------------
+      2    000200              ;  ECE 3362-002 Project 0 - Unique number LED
+                                blinker.
+      3    000200              ;       This program will blink both the red and
+                                green LEDs a number times based
+      4    000200              ;       based on the random number 36. The red
+                                LED will blink an amount equal to
+      5    000200              ;       to the 10s place of the number and the
+                                green LED will blink an amount
+      6    000200              ;       equal to the 1s place of the number.
+                                This will be done by changing the
+      7    000200              ;       state of the two bits that control the
+                                LEDs by a predefined amount.
+      8    000200              ;
+      9    000200              ;  Purpose: This program is designed to
+                                introduce the student into basics of
+     10    000200              ;       of using the IAR Embedded Workbench IDE
+                                and understanding the basics
+     11    000200              ;       of working with the MSP430G2553 device
+                                using assembly language code.
+     12    000200              ;
+     13    000200              ;   Target: TI LaunchPad development board with
+                                MSP430G2553 device installed
+     14    000200              ;
+     15    000200              ;       Date:           Sept 10, 2018
+     16    000200              ;       Last Revision:  1.0
+     17    000200              ;       Written by:     Bradley Ward, ECE dept,
+                                Texas Tech University
+     18    000200              ;       Adapted from:   Provided code examples;
+                                Dr. M. Helm, September 2018   
+     19    000200              ;                       Demo_aSimpleLEDblinker
+     20    000200              ;                       DemoWithPushButton
+     21    000200              ;                       ANewSimpleArithmeticExam
+                               ple
+     22    000200              ;       Assembler/IDE:  IAR Embedded Workbench
+                                6.5
+     23    000200              ;
+     24    000200              ;       HW I/O assignments: (hardwired on
+                                LaunchPad board)
+     25    000200              ;       P1.0    LED1    (Active HIGH)RED
+     26    000200              ;       P1.1    not used
+     27    000200              ;       P1.2    not usedd
+     28    000200              ;       P1.3    PushButton (Active LOW)
+                                (internal Pullup Enabled)
+     29    000200              ;       P1.4    not used
+     30    000200              ;       P1.5    not used
+     31    000200              ;       P1.6    LED2    (Active HIGH)GREEN
+     32    000200              ;       P1.7    not used
+     33    000200              ;
+     34    000200              ;       P2.0    not used
+     35    000200              ;       P2.1    not used
+     36    000200              ;       P2.2    not used
+     37    000200              ;       P2.3    not used
+     38    000200              ;       P2.4    not used
+     39    000200              ;       P2.5    not used
+     40    000200              ;       P2.6    not used
+     41    000200              ;       P2.7    not used
+     42    000200              ;
+     43    000200              ;-----------------------------------------------
+                               --------------------------------
+     44    000200              #include  "msp430g2553.h"   ; standard header
+                                required for program
+     45    000200              ;-----------------------------------------------
+                               --------------------------------
+     46    000200              ; Constants
+     47    000200              ;-----------------------------------------------
+                               --------------------------------
+     48    000200              ; delay timer for how long LED stays on/off
+     49    00FFFF              DELAY_TIMER     EQU     65535
+     50    000200              
+     51    000200              ; defining ports that use LEDs and pushbutton
+                                for clarity
+     52    000001              REDLED          EQU     %00000001
+     53    000040              GREENLED        EQU     %01000000
+     54    000008              PUSHBUTTON      EQU     %00001000
+     55    000200              
+     56    000200              ; defining counts for unique number sequence
+     57    000003              REDCOUNT        EQU     0x03
+     58    000006              GREENCOUNT      EQU     0x06
+     59    000200              ;-----------------------------------------------
+                               --------------------------------
+     60    000200              ; Variables
+     61    000200              ;-----------------------------------------------
+                               --------------------------------
+     62    000200                              ORG   0x0200     ; beginning of
+                                                                 RAM space
+                                                                 (necessary
+                                                                 statement)
+     63    000200                                               ; Assembler
+                                Directive for start of RAM 
+     64    000200              
+     65    000200              ;-----------------------------------------------
+                               --------------------------------
+     66    00C000                          ORG     0xC000                  ;
+  Program Space start address
+     67    00C000              ;-----------------------------------------------
+                               --------------------------------
+     68    00C000              ; BOILER PLATE - necessary initialization
+     69    00C000 31400004     RESET       mov.w   #0x0400,SP              ;
+  Initialize stackpointer to bottom
+     70    00C004                                                          ; of
+                                RAM space
+     71    00C004 B240805A2001 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ;
+  Stop WDT (Watchdog Timer)
+     72    00C00A              
+     73    00C00A F24041002200 SetupP1     mov.b   #REDLED+GREENLED,&P1DIR ;
+                                                            set LEDs on P1 to
+                                                            output
+     74    00C010                                                         
+                                
+     75    00C010                          ; PushButton is wired to P1.3, which
+                                is set to Active LOW, and the
+     76    00C010                          ; internal pullup resistor needs to
+                                be turned on. This can be done
+     77    00C010                          ; with the PIREN register
+     78    00C010 F2422700                 mov.b       #PUSHBUTTON, &P1REN    
+                                                                     ;internal
+                                                                     resistor
+                                                                     turned
+                                                                     on
+     79    00C014 F2422100                 mov.b       #PUSHBUTTON, &P1OUT    
+                                                                     ;set
+                                                                     resistor
+                                                                     to pullup
+                                                                     mode
+                                                                     
+     80    00C018                          
+     81    00C018 D2C32100                 bic.b #REDLED, &P1OUT       ; red
+                                                           LED off
+     82    00C01C F2C040002100             bic.b #GREENLED, &P1OUT     ; green
+                                                             LED off
+     83    00C022              
+     84    00C022              ;-----------------------------------------------
+                               --------------------------------
+     85    00C022              ; start of main program (organized as a polling
+                                loop to read the pushbutton)          
+                                
+     86    00C022              ;-----------------------------------------------
+                               --------------------------------
+     87    00C022                          ; now start the continuous forever
+                                loop
+     88    00C022              Mainloop    ; first read the state of the
+                                Pushbutton  (Active LOW)
+     89    00C022 F2B22000                 bit.b   #PUSHBUTTON, &P1IN      ;
+                                                                 check the
+                                                                 state of
+                                                                 P1.3
+     90    00C026 1C20                     jne     ButtonNotPressed  ; (match)
+                                                                      pin was
+                                                                      HIGH
+                                                                      (button
+                                                                      NOT
+                                                                      pressed)
+     91    00C028                              ; NOTE: the jump decision is
+                                based on state of ZERO flag
+     92    00C028                              ; in the Status Register (SR)
+                                after doing the bit test
+     93    00C028                          
+     94    00C028              ButtonPressed
+     95    00C028 7E400300                 mov.b #REDCOUNT, R14    ;load loop
+                                                                    counter
+                                                                    (R14) with
+                                                                    red loop
+                                                                    count
+     96    00C02C 7D400600                 mov.b #GREENCOUNT, R13  ;load loop
+                                                                    counter
+                                                                    (R13) with
+                                                                    green loop
+                                                                    count
+     97    00C030                          
+     98    00C030              RedLoop
+     99    00C030 B0126CC0                 call #Time_Delay            ; delay
+                                                                        timer
+                                                                        subrout
+                                                                       ine
+                                                                        call
+    100    00C034 D2432100                 mov.b #REDLED, &P1OUT       ; turn
+                                                           on red LED
+    101    00C038 B0126CC0                 call #Time_Delay            ; delay
+                                                                        timer
+                                                                        subrout
+                                                                       ine
+                                                                        call
+    102    00C03C D2C32100                 bic.b #REDLED, &P1OUT       ; turn
+                                                           off red LED
+    103    00C040                          
+    104    00C040 1E83                     dec R14               ; decrement
+                                                                  loop
+                                                                  counter
+    105    00C042 F623                     jnz RedLoop           ; if not zero,
+                                                                  continue
+                                                                  through
+                                                                  loop
+    106    00C044               
+    107    00C044              GreenLoop
+    108    00C044 B0126CC0                 call #Time_Delay            ; delay
+                                                                        timer
+                                                                        subrout
+                                                                       ine
+                                                                        call
+    109    00C048 F24040002100             mov.b #GREENLED, &P1OUT     ; turn
+                                                             on green
+                                                             LED
+    110    00C04E B0126CC0                 call #Time_Delay            ; delay
+                                                                        timer
+                                                                        subrout
+                                                                       ine
+                                                                        call
+    111    00C052 F2C040002100             bic.b #GREENLED, &P1OUT     ; turn
+                                                             off green
+                                                             LED
+    112    00C058                          
+    113    00C058 1D83                     dec R13               ; decrement
+                                                                  loop
+                                                                  counter
+    114    00C05A F423                     jnz GreenLoop         ; if not zero,
+                                                                  continue
+                                                                  through loop
+                                                                  
+    115    00C05C              
+    116    00C05C F2422100                 mov.b       #PUSHBUTTON, &P1OUT    
+                                                                     ; reset
+                                                                     push
+                                                                     button
+                                                                     status
+    117    00C060                           
+    118    00C060              ButtonNotPressed
+    119    00C060 D2C32100                 bic.b #REDLED, &P1OUT       ; clear
+                                                           bit to ensure red
+                                                           LED is off
+    120    00C064 F2C040002100             bic.b #GREENLED, &P1OUT     ; clear
+                                                             bit to ensure
+                                                             green LED is
+                                                             off
+    121    00C06A                          
+    122    00C06A DB3F         Done        jmp     Mainloop           ; now
+                                                                       repeat
+                                                                       
+    123    00C06C                                                     ;
+                                starting again at Mainloop
+    124    00C06C              ;-----------------------------------------------
+                               --------------------------------
+    125    00C06C              ;           End of main code
+    126    00C06C              ;-----------------------------------------------
+                               --------------------------------                
+                                                           
+    127    00C06C                                                        
+                                
+    128    00C06C              ;-----------------------------------------------
+                               --------------------------------
+    129    00C06C              ;           Subroutines
+    130    00C06C              ;-----------------------------------------------
+                               -------------------------------- 
+    131    00C06C              
+    132    00C06C              ;-----------------------------------------------
+                               --------------------------------
+    133    00C06C              ; Time_Delay
+    134    00C06C              ;  passed in - nothing
+    135    00C06C              ;  returned - nothing
+    136    00C06C              ;  accomplishes - time delay
+    137    00C06C              ;  uses: R15
+    138    00C06C              ;-----------------------------------------------
+                               --------------------------------
+    139    00C06C              Time_Delay
+    140    00C06C 0F12             push R15   ;  save R15 since we use it
+                                               here
+    141    00C06E              DelayTop
+    142    00C06E 3F43             mov #DELAY_TIMER, R15  ;load loop counter
+                                                           (R15) with time
+                                                           constant
+    143    00C070              Loop1
+    144    00C070 1F83             dec R15               ; decrement loop
+                                                          counter
+    145    00C072 FE23             jnz Loop1             ; Zero yet?, no
+                                                          decrement again
+    146    00C074              
+    147    00C074 3F41             pop R15     ; restore R15 before returning
+    148    00C076 3041             ret         ; return
+    149    00C078              ;-----------------------------------------------
+                               --------------------------------
+    150    00C078              ;  end of Time_Delay
+    151    00C078              ;-----------------------------------------------
+                               --------------------------------
+    152    00C078              
+    153    00C078              ;-----------------------------------------------
+                               --------------------------------
+    154    00C078              ;           End of all Subroutines
+    155    00C078              ;-----------------------------------------------
+                               --------------------------------
+    156    00C078              
+    157    00C078              ;-----------------------------------------------
+                               --------------------------------
+    158    00C078              ;           Interrupt Vectors
+    159    00C078              ;-----------------------------------------------
+                               --------------------------------
+    160    00FFFE                          ORG     0xFFFE           ; MSP430
+                                                                     RESET
+                                                                     Vector
+    161    00FFFE 00C0                     DW      RESET            ;
+                                                                     establishe
+                                                                    s the label
+                                                                     RESET as
+                                                                     
+    162    010000                                                   ; the
+                                starting point
+    163    010000                          END                      ; END of
+                                all code for this program
+
+
+
+Segment             Type 	Mode
+----------------------------------------
+ASEG                CODE  	ABS Org:200 
+
+Label               Mode   Type                   Segment    Value/Offset
+------------------------------------------------------------------------------
+ADC10AE0            ABS    CONST UNTYP.           ASEG       4A 
+ADC10CTL0           ABS    CONST UNTYP.           ASEG       1B0 
+ADC10CTL1           ABS    CONST UNTYP.           ASEG       1B2 
+ADC10DTC0           ABS    CONST UNTYP.           ASEG       48 
+ADC10DTC1           ABS    CONST UNTYP.           ASEG       49 
+ADC10MEM            ABS    CONST UNTYP.           ASEG       1B4 
+ADC10SA             ABS    CONST UNTYP.           ASEG       1BC 
+BCSCTL1             ABS    CONST UNTYP.           ASEG       57 
+BCSCTL2             ABS    CONST UNTYP.           ASEG       58 
+BCSCTL3             ABS    CONST UNTYP.           ASEG       53 
+ButtonNotPressed    ABS    CONST UNTYP.           ASEG       C060 
+ButtonPressed       ABS    CONST UNTYP.           ASEG       C028 
+CACTL1              ABS    CONST UNTYP.           ASEG       59 
+CACTL2              ABS    CONST UNTYP.           ASEG       5A 
+CALBC1_12MHZ        ABS    CONST UNTYP.           ASEG       10FB 
+CALBC1_16MHZ        ABS    CONST UNTYP.           ASEG       10F9 
+CALBC1_1MHZ         ABS    CONST UNTYP.           ASEG       10FF 
+CALBC1_8MHZ         ABS    CONST UNTYP.           ASEG       10FD 
+CALDCO_12MHZ        ABS    CONST UNTYP.           ASEG       10FA 
+CALDCO_16MHZ        ABS    CONST UNTYP.           ASEG       10F8 
+CALDCO_1MHZ         ABS    CONST UNTYP.           ASEG       10FE 
+CALDCO_8MHZ         ABS    CONST UNTYP.           ASEG       10FC 
+CAPD                ABS    CONST UNTYP.           ASEG       5B 
+DCOCTL              ABS    CONST UNTYP.           ASEG       56 
+DELAY_TIMER         ABS    CONST UNTYP.           ASEG       FFFF 
+DelayTop            ABS    CONST UNTYP.           ASEG       C06E 
+Done                ABS    CONST UNTYP.           ASEG       C06A 
+FCTL1               ABS    CONST UNTYP.           ASEG       128 
+FCTL2               ABS    CONST UNTYP.           ASEG       12A 
+FCTL3               ABS    CONST UNTYP.           ASEG       12C 
+GREENCOUNT          ABS    CONST UNTYP.           ASEG       6 
+GREENLED            ABS    CONST UNTYP.           ASEG       40 
+GreenLoop           ABS    CONST UNTYP.           ASEG       C044 
+IE1                 ABS    CONST UNTYP.           ASEG       0 
+IE2                 ABS    CONST UNTYP.           ASEG       1 
+IFG1                ABS    CONST UNTYP.           ASEG       2 
+IFG2                ABS    CONST UNTYP.           ASEG       3 
+Loop1               ABS    CONST UNTYP.           ASEG       C070 
+Mainloop            ABS    CONST UNTYP.           ASEG       C022 
+P1DIR               ABS    CONST UNTYP.           ASEG       22 
+P1IE                ABS    CONST UNTYP.           ASEG       25 
+P1IES               ABS    CONST UNTYP.           ASEG       24 
+P1IFG               ABS    CONST UNTYP.           ASEG       23 
+P1IN                ABS    CONST UNTYP.           ASEG       20 
+P1OUT               ABS    CONST UNTYP.           ASEG       21 
+P1REN               ABS    CONST UNTYP.           ASEG       27 
+P1SEL               ABS    CONST UNTYP.           ASEG       26 
+P1SEL2              ABS    CONST UNTYP.           ASEG       41 
+P2DIR               ABS    CONST UNTYP.           ASEG       2A 
+P2IE                ABS    CONST UNTYP.           ASEG       2D 
+P2IES               ABS    CONST UNTYP.           ASEG       2C 
+P2IFG               ABS    CONST UNTYP.           ASEG       2B 
+P2IN                ABS    CONST UNTYP.           ASEG       28 
+P2OUT               ABS    CONST UNTYP.           ASEG       29 
+P2REN               ABS    CONST UNTYP.           ASEG       2F 
+P2SEL               ABS    CONST UNTYP.           ASEG       2E 
+P2SEL2              ABS    CONST UNTYP.           ASEG       42 
+P3DIR               ABS    CONST UNTYP.           ASEG       1A 
+P3IN                ABS    CONST UNTYP.           ASEG       18 
+P3OUT               ABS    CONST UNTYP.           ASEG       19 
+P3REN               ABS    CONST UNTYP.           ASEG       10 
+P3SEL               ABS    CONST UNTYP.           ASEG       1B 
+P3SEL2              ABS    CONST UNTYP.           ASEG       43 
+PUSHBUTTON          ABS    CONST UNTYP.           ASEG       8 
+REDCOUNT            ABS    CONST UNTYP.           ASEG       3 
+REDLED              ABS    CONST UNTYP.           ASEG       1 
+RESET               ABS    CONST UNTYP.           ASEG       C000 
+RedLoop             ABS    CONST UNTYP.           ASEG       C030 
+SetupP1             ABS    CONST UNTYP.           ASEG       C00A 
+StopWDT             ABS    CONST UNTYP.           ASEG       C004 
+TA0CCR0             ABS    CONST UNTYP.           ASEG       172 
+TA0CCR1             ABS    CONST UNTYP.           ASEG       174 
+TA0CCR2             ABS    CONST UNTYP.           ASEG       176 
+TA0CCTL0            ABS    CONST UNTYP.           ASEG       162 
+TA0CCTL1            ABS    CONST UNTYP.           ASEG       164 
+TA0CCTL2            ABS    CONST UNTYP.           ASEG       166 
+TA0CTL              ABS    CONST UNTYP.           ASEG       160 
+TA0IV               ABS    CONST UNTYP.           ASEG       12E 
+TA0R                ABS    CONST UNTYP.           ASEG       170 
+TA1CCR0             ABS    CONST UNTYP.           ASEG       192 
+TA1CCR1             ABS    CONST UNTYP.           ASEG       194 
+TA1CCR2             ABS    CONST UNTYP.           ASEG       196 
+TA1CCTL0            ABS    CONST UNTYP.           ASEG       182 
+TA1CCTL1            ABS    CONST UNTYP.           ASEG       184 
+TA1CCTL2            ABS    CONST UNTYP.           ASEG       186 
+TA1CTL              ABS    CONST UNTYP.           ASEG       180 
+TA1IV               ABS    CONST UNTYP.           ASEG       11E 
+TA1R                ABS    CONST UNTYP.           ASEG       190 
+TLV_ADC10_1_LEN     ABS    CONST UNTYP.           ASEG       10DB 
+TLV_ADC10_1_TAG     ABS    CONST UNTYP.           ASEG       10DA 
+TLV_CHECKSUM        ABS    CONST UNTYP.           ASEG       10C0 
+TLV_DCO_30_LEN      ABS    CONST UNTYP.           ASEG       10F7 
+TLV_DCO_30_TAG      ABS    CONST UNTYP.           ASEG       10F6 
+Time_Delay          ABS    CONST UNTYP.           ASEG       C06C 
+UCA0ABCTL           ABS    CONST UNTYP.           ASEG       5D 
+UCA0BR0             ABS    CONST UNTYP.           ASEG       62 
+UCA0BR1             ABS    CONST UNTYP.           ASEG       63 
+UCA0CTL0            ABS    CONST UNTYP.           ASEG       60 
+UCA0CTL1            ABS    CONST UNTYP.           ASEG       61 
+UCA0IRRCTL          ABS    CONST UNTYP.           ASEG       5F 
+UCA0IRTCTL          ABS    CONST UNTYP.           ASEG       5E 
+UCA0MCTL            ABS    CONST UNTYP.           ASEG       64 
+UCA0RXBUF           ABS    CONST UNTYP.           ASEG       66 
+UCA0STAT            ABS    CONST UNTYP.           ASEG       65 
+UCA0TXBUF           ABS    CONST UNTYP.           ASEG       67 
+UCB0BR0             ABS    CONST UNTYP.           ASEG       6A 
+UCB0BR1             ABS    CONST UNTYP.           ASEG       6B 
+UCB0CTL0            ABS    CONST UNTYP.           ASEG       68 
+UCB0CTL1            ABS    CONST UNTYP.           ASEG       69 
+UCB0I2CIE           ABS    CONST UNTYP.           ASEG       6C 
+UCB0I2COA           ABS    CONST UNTYP.           ASEG       118 
+UCB0I2CSA           ABS    CONST UNTYP.           ASEG       11A 
+UCB0RXBUF           ABS    CONST UNTYP.           ASEG       6E 
+UCB0STAT            ABS    CONST UNTYP.           ASEG       6D 
+UCB0TXBUF           ABS    CONST UNTYP.           ASEG       6F 
+WDTCTL              ABS    CONST UNTYP.           ASEG       120 
+
+
+##############################
+#          CRC:376C          #
+#        Errors:   0         #
+#        Warnings: 0         #
+#         Bytes: 122         #
+##############################
+
+
+
+

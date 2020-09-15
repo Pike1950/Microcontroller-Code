@@ -1,0 +1,312 @@
+;-------------------------------------------------------------------------------
+;  ECE 3362-002 Project 1 - 7 segment display program.
+;       This program will utilize an expansion board that has a 7-segment
+;       display wired on it. After pressing the LaunchPad button, the string 
+;       'ECE-3362' and one's digit from the previous project will be displayed 
+;       in a sequence. After the sequence is done running, a zero will be 
+;       displayed and the four push buttons will be enabled. Pressing a 
+;       combination of the four buttons will display the resulting hex value.
+;       
+;  Purpose: This program is designed to introduce the student into the usage 
+;       of an expansion board, a 7-segment 1 digit board, pattern tables, and
+;       port masking.
+;
+;   Target: TI LaunchPad development board with MSP430G2553 device installed
+;
+;       Date:           Sept 27, 2018
+;       Last Revision:  1.0
+;       Written by:     Bradley Ward, ECE dept, Texas Tech University
+;       Adapted from:   Provided code examples; Dr. M. Helm, September 2018   
+;                       DemoWith_1_digitExpansionBdRevised
+;                       DemoWith_1_digitExBDPB_MaskingAndTableExample
+;                       DemoSimpleTableStructureRevised
+;       Assembler/IDE:  IAR Embedded Workbench 6.5
+;
+;       HW I/O assignments: (hardwired on LaunchPad board)
+;       P1.0    (output) LED1 LaunchPad bd (active high)
+;       P1.1    (input)  pushbutton (top) (active low) expansion bd 
+;       P1.2    (input)  pushbutton (second from top) (active low) expansion bd 
+;       P1.3    (input)  pushbutton on LaunchPad bd (active low)
+;       P1.4    (input) pushbutton (third from top) (active low) expansion bd
+;       P1.5    (input) pushbutton (bottom) (active low) expansion bd 
+;       P1.6    (output) LED2 LaunchPad bd (active high)  
+;       P1.7    (not used)  
+;
+;       P2.0    (output) Segment A (active high) drives display board
+;       P2.1    (output) Segment B (active high) drives display board
+;       P2.2    (output) Segment C (active high) drives display board
+;       P2.3    (output) Segment D (active high) drives display board
+;       P2.4    (output) Segment E (active high) drives display board
+;       P2.5    (output) Segment F (active high) drives display board
+;       P2.6    (output) Segment G (active high) drives display board
+;       P2.7    (output) Segment DP (active high) drives display board
+;
+;-------------------------------------------------------------------------------
+#include  "msp430g2553.h"   ; standard header required for program
+;-------------------------------------------------------------------------------
+; Constants
+;-------------------------------------------------------------------------------
+LONG_DELAY      EQU     65535  ; max 16 bit value (FFFFh)
+SHORT_DELAY     EQU     10000
+
+SEG_A           EQU     %00000001 ; Port pin position P2.0
+SEG_B           EQU     %00000010 ; Port pin position P2.1
+SEG_C           EQU     %00000100 ; Port pin position P2.2
+SEG_D           EQU     %00001000 ; Port pin position P2.3
+SEG_E           EQU     %00010000 ; Port pin position P2.4
+SEG_F           EQU     %00100000 ; Port pin position P2.5
+SEG_G           EQU     %01000000 ; Port pin position P2.6
+SEG_DP          EQU     %10000000 ; Port pin position P2.7
+
+PB_0            EQU     %00000010 ; Port pin position P1.1
+PB_1            EQU     %00000100 ; Port pin position P1.2   
+PB_2            EQU     %00010000 ; Port pin position P1.4   
+PB_3            EQU     %00100000 ; Port pin position P1.5
+PB_LPBD         EQU     %00001000 ; Port pin position P1.3 (on LaunchPad bd)
+
+SEG_PORT        EQU     P2OUT     ; Port 2 output lable
+PB_PORT         EQU     P1IN      ; Port 1 input lable
+
+ONE             EQU     %00000110 ; Binary sequence for 1
+TWO             EQU     %01011011 ; Binary sequence for 2
+THREE           EQU     %01001111 ; Binary sequence for 3
+FOUR            EQU     %01100110 ; Binary sequence for 4
+FIVE            EQU     %01101101 ; Binary sequence for 5
+SIX             EQU     %01111101 ; Binary sequence for 6
+SEVEN           EQU     %00000111 ; Binary sequence for 7
+EIGHT           EQU     %01111111 ; Binary sequence for 8
+NINE            EQU     %01100111 ; Binary sequence for 9
+ZERO            EQU     %00111111 ; Binary sequence for 0
+
+LETTER_A        EQU     %01110111 ; Binary sequence for the letter A
+LETTER_B        EQU     %01111100 ; Binary sequence for the letter b
+LETTER_C        EQU     %00111001 ; Binary sequence for the letter C
+LETTER_D        EQU     %01011110 ; Binary sequence for the letter d
+LETTER_E        EQU     %01111001 ; Binary sequence for the letter E
+LETTER_F        EQU     %01110001 ; Binary sequence for the letter F
+LETTER_DASH     EQU     %01000000 ; Binary sequence for the character '-'
+
+;-------------------------------------------------------------------------------
+; Definition of Variables
+;-------------------------------------------------------------------------------
+
+                ORG   0x0200     ; beginning of RAM space 
+                                ;  Assembler Directive for start of RAM 
+                                ;  necessary statement
+                                ; if RAM variables are used)
+                                      
+;-------------------------------------------------------------------------------
+            ORG     0xC000                  ; Program Reset (prog memory start)
+                                            ; this is Program memory start 
+                                            ; address for MSP430G2553 (16K)
+;-------------------------------------------------------------------------------
+RESET       mov.w    #0x0400,SP        ; Initialize stackpointer(to end of RAM +1)
+                                     ; RAM is 512 bytes, last position is 3FFh
+                                     
+StopWDT     mov.w    #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT (Watchdog timer)
+
+SetupP2     
+            clr.b    &SEG_PORT ; turn off all the segments 
+            mov.b    #0xFF, &P2DIR ; all as outputs to drive 7-seg LED
+            bic.b    #0xC0, &P2SEL   ; Clears the P2SEL bits so that 
+                                        
+            mov.b    #0xBE, &P1REN   ;turn on the internal resistor for PB's
+            mov.b    #0xBE, &P1OUT   ; set the resistors to Pullup mode                                        
+            
+ReadPort1 ; will test for single button press but not combinations of buttons
+
+;initially check for the LaunchPad pushbutton case - since we don't care about
+; state of any other buttons for this case, we can do a simple bit test
+
+            bit.b   #PB_LPBD, &PB_PORT      ; check the state of P1.3
+            jne     ButtonNotPressed  ;(match) pin was HIGH (button NOT pressed)
+                ; NOTE:   the jump decision is based on state of ZERO flag
+                ;  in the Status Register (SR) after doing the bit test
+            
+ButtonPressed   ; if pressed
+            mov #8, R12 ; set loop counter for 'ECE-3362' segment
+            mov #PatternTable1, R14 ; load starting address of Pattern Table 1
+                                    ; that has 'ECE-3362' segment
+
+ECELoop
+            mov.b  @R14+, &SEG_PORT ; goto address and load value in &SEG_PORT
+            call   #Delay_Long      ; delay to show value
+            call   #Delay_Short
+            clr.b  &SEG_PORT        ; clear display
+            call   #Delay_Long      ; delay to show blank
+            call   #Delay_Short
+            dec    R12              ; decrement loop counter
+            jnz    ECELoop          ; if R12 not 0, then go back through loop
+            
+DisplayOnesDigit
+            call  #Delay_Long           ; wait before displaying value
+            mov.b #SIX, &SEG_PORT       ; display 6 on 7 seg display
+            call  #Delay_Double         ; delay to show value
+            clr.b &SEG_PORT             ; clear display    
+            mov.b #SEG_DP, &SEG_PORT    ; display decimal point on 7 seg display
+            call  #Delay_Double         ; delay to show value
+            clr.b &SEG_PORT             ; clear display 
+            call  #Delay_Long           ; delay to show blank
+            
+ReadExpansionPort
+            
+            ;10BB1BB0 positions - this is actual Port state
+            ;copy PB_PORT into a temporary register for manipulation
+            mov.b &PB_PORT, R15 
+            ;mask out everything but the buttons of interest
+            and.b #%00110110, R15
+            rra.b R15            ;first step in getting them to LSnybble position
+            mov.b R15, R14       ;make a copy for later use
+            and.b #%00011000, R15  ; isolate these two bits in R15
+            rra.b R15             ; mov these bits right by one position
+            and.b #%00000011, R14  ; isolate these two bits in R14
+            bis.b R14, R15         ;combine all the bits into final result in R15
+            ;R15 now contains the state of the 4 pushbuttons in the LSnybble
+            ;these can be used as an index into a table if we have the table
+            ;base address
+            ;NOTE:  these bits are in opposite state from what is needed since
+            ; the pushbuttons are active HIGH, so we need to invert them
+            xor.b #%00001111, R15
+              
+            mov   #PatternTable2, R14  ; R14 now contains base address of table
+            add   R14, R15             ; R15 now contains address of item in table
+            mov.b @R15, &SEG_PORT      ; move contents of address into &SEG_PORT
+            
+            jmp   ReadExpansionPort    ; keep jumping back to ReadExpansionPort
+            
+ButtonNotPressed
+            
+Done        jmp     ReadPort1           ;  halt here
+                                      
+;-------------------------------------------------------------------------------
+;           End of main code
+;-------------------------------------------------------------------------------                                            
+                                           
+;-------------------------------------------------------------------------------
+;           Subroutines
+;------------------------------------------------------------------------------- 
+
+; none used here
+
+;-------------------------------------------------------------------------------
+;           End of all Subroutines
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+; Delay_Double
+;  passed in - nothing
+;  returned - nothing
+;  accomplishes - double long delay
+;  uses: R15
+;-------------------------------------------------------------------------------
+Delay_Double
+    push R15     ; save R15 since we use it here
+DelayTopD
+    mov #LONG_DELAY, R15     ;load loop counter (R15) with Long Delay constant
+Loop1LongD
+    dec R15                     ; decrement loop counter
+    jnz Loop1LongD               ; Zero yet?, no decrement again
+DelayTopD2
+    mov #LONG_DELAY, R15     ;load loop counter (R15) with Long Delay constant
+Loop2LongD
+    dec R15                     ; decrement loop counter
+    jnz Loop2LongD               ; Zero yet?, no decrement again
+
+    pop R15     ; restore R15 before returning
+    ret         ; return
+;-------------------------------------------------------------------------------
+;  end of Delay_Double
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+; Delay_Long
+;  passed in - nothing
+;  returned - nothing
+;  accomplishes - long delay
+;  uses: R15
+;-------------------------------------------------------------------------------
+Delay_Long
+    push R15     ; save R15 since we use it here
+DelayTopL
+    mov #LONG_DELAY, R15     ;load loop counter (R15) with Long Delay constant
+Loop1Long
+    dec R15                     ; decrement loop counter
+    jnz Loop1Long               ; Zero yet?, no decrement again
+
+    pop R15     ; restore R15 before returning
+    ret         ; return
+;-------------------------------------------------------------------------------
+;  end of Delay_Long
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+; Delay_Short
+;  passed in - nothing
+;  returned - nothing
+;  accomplishes - short delay
+;  uses: R15
+;-------------------------------------------------------------------------------
+Delay_Short
+    push R15     ; save R15 since we use it here
+DelayTopS
+    mov #SHORT_DELAY, R15     ;load loop counter (R15) with Long Delay constant
+Loop1Short
+    dec R15                     ; decrement loop counter
+    jnz Loop1Short               ; Zero yet?, no decrement again
+
+    pop R15     ; restore R15 before returning
+    ret         ; return
+;-------------------------------------------------------------------------------
+;  end of Delay_Short
+;-------------------------------------------------------------------------------
+
+
+;-------------------------------------------------------------------------------
+;           Definition of Program Data Memory 
+;-------------------------------------------------------------------------------
+            ORG   0xE000   ; this line not strictly necessary, but does force
+                            ; the location of this program memory data - this is
+                            ; a matter of convenience  - need to leave enough
+                            ; space ahead of Interrupt Vectors for the data that
+                            ; we are putting here
+                            
+PatternTable1           ; pattern table 1 is for the 'ECE-3362' segment
+Row0    DB  LETTER_E    ; these addresses hold the bit positions which will
+Row1    DB  LETTER_C    ; sent to &SEG_PORT and displayed
+Row2    DB  LETTER_E   
+Row3    DB  LETTER_DASH
+Row4    DB  THREE
+Row5    DB  THREE
+Row6    DB  SIX
+Row7    DB  TWO
+
+PatternTable2           ; pattern table 2 is for the 4 pushbutton sequence      
+        DB  ZERO        ; that allows the assembler to find the proper value      
+        DB  ONE         ; faster by adding the start address and the corresponding
+        DB  TWO         ; hex value from the user button press 
+        DB  THREE
+        DB  FOUR
+        DB  FIVE
+        DB  SIX
+        DB  SEVEN
+        DB  EIGHT
+        DB  NINE
+        DB  LETTER_A
+        DB  LETTER_B
+        DB  LETTER_C
+        DB  LETTER_D
+        DB  LETTER_E
+        DB  LETTER_F
+
+;-------------------------------------------------------------------------------
+;           Interrupt Vectors
+;-------------------------------------------------------------------------------
+
+            ORG     0xFFFE                  ; MSP430 RESET Vector
+            DW      RESET                   ; establishes the label RESET as 
+                                            ; the starting point
+                                            
+;-------------------------------------------------------------------------------                                            
+            END                             ; END of all code for this program
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------

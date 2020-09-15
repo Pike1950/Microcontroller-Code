@@ -1,0 +1,178 @@
+;-------------------------------------------------------------------------------
+;  ECE 3362-002 Project 0 - Unique number LED blinker.
+;       This program will blink both the red and green LEDs a number times based
+;       based on the random number 36. The red LED will blink an amount equal to
+;       to the 10s place of the number and the green LED will blink an amount
+;       equal to the 1s place of the number. This will be done by changing the
+;       state of the two bits that control the LEDs by a predefined amount.
+;
+;  Purpose: This program is designed to introduce the student into basics of
+;       of using the IAR Embedded Workbench IDE and understanding the basics
+;       of working with the MSP430G2553 device using assembly language code.
+;
+;   Target: TI LaunchPad development board with MSP430G2553 device installed
+;
+;       Date:           July 1, 2019
+;       Last Revision:  1.0
+;       Written by:     Bradley Ward, ECE dept, Texas Tech University
+;       Adapted from:   Provided code examples; Dr. M. Helm, September 2018   
+;                       Demo_aSimpleLEDblinker
+;                       DemoWithPushButton
+;                       ANewSimpleArithmeticExample
+;       Assembler/IDE:  IAR Embedded Workbench 6.5
+;
+;       HW I/O assignments: (hardwired on LaunchPad board)
+;       P1.0    LED1    (Active HIGH)RED
+;       P1.1    not used
+;       P1.2    not used
+;       P1.3    PushButton (Active LOW) (internal Pullup Enabled)
+;       P1.4    not used
+;       P1.5    I1      Current Control 1
+;       P1.6    LED2    (Active HIGH)GREEN
+;       P1.7    not used
+;
+;       P2.0    I2      Current Control 2
+;       P2.1    STEP    Step Command
+;       P2.2    DIR     Step Direction
+;       P2.3    MS1     Microstep 1     
+;       P2.4    MS1     Microstep 2 
+;       P2.5    not used
+;       P2.6    not used
+;       P2.7    not used
+;
+;-------------------------------------------------------------------------------
+#include  "msp430g2553.h"   ; standard header required for program
+;-------------------------------------------------------------------------------
+; Constants
+;-------------------------------------------------------------------------------
+; delay timer for how long LED stays on/off
+DELAY_TIMER     EQU     500
+
+; defining ports that use LEDs and pushbutton for clarity
+REDLED          EQU     %00000001
+PUSHBUTTON      EQU     %00001000
+CURRENT1        EQU     %00100000
+
+CURRENT2        EQU     %00000001
+STEPPORT        EQU     %00000010
+DIRPORT         EQU     %00000100
+MS1PORT         EQU     %00001000
+MS2PORT         EQU     %00010000
+
+; defining counts for number of steps
+REDCOUNT        EQU     0x0320
+NUMOFSTEPS      EQU     0x05
+;-------------------------------------------------------------------------------
+; Variables
+;-------------------------------------------------------------------------------
+                ORG   0x0200     ; beginning of RAM space (necessary statement)
+                                 ; Assembler Directive for start of RAM 
+
+;-------------------------------------------------------------------------------
+            ORG     0xC000                  ; Program Space start address
+;-------------------------------------------------------------------------------
+; BOILER PLATE - necessary initialization
+RESET       mov.w   #0x0400,SP              ; Initialize stackpointer to bottom
+                                            ; of RAM space
+StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ; Stop WDT (Watchdog Timer)
+
+SetupP1     mov.b   #REDLED+CURRENT1,&P1DIR ; set ports on P1 to output
+
+SetupP2     mov.b   #CURRENT2+STEPPORT+DIRPORT+MS1PORT+MS2PORT,&P2DIR ; set ports on P2 to output
+                                            
+            ; PushButton is wired to P1.3, which is set to Active LOW, and the
+            ; internal pullup resistor needs to be turned on. This can be done
+            ; with the PIREN register
+            mov.b       #PUSHBUTTON, &P1REN     ;internal resistor turned on
+            mov.b       #PUSHBUTTON, &P1OUT     ;set resistor to pullup mode 
+            
+            bic.b #REDLED,   &P1OUT     ; red LED off
+            bic.b #CURRENT1, &P1OUT     ; Set current 1 to low
+            
+            bic.b #CURRENT2, &P2OUT     ; Set current 2 to low
+            bic.b #STEPPORT, &P2OUT     ; No steps yet
+            bic.b #DIRPORT,  &P2OUT     ; Set direction
+            bic.b #MS1PORT, &P2OUT      ; Set to 1/4 microstep
+            bic.b #MS2PORT,  &P2OUT     ; Set to 1/4 microstep
+
+;-------------------------------------------------------------------------------
+; start of main program (organized as a polling loop to read the pushbutton)           
+;-------------------------------------------------------------------------------
+            ; now start the continuous forever loop
+Mainloop    ; first read the state of the Pushbutton  (Active LOW)
+            bit.b   #PUSHBUTTON, &P1IN      ; check the state of P1.3
+            jne     ButtonNotPressed  ; (match) pin was HIGH (button NOT pressed)
+                ; NOTE: the jump decision is based on state of ZERO flag
+                ; in the Status Register (SR) after doing the bit test
+            
+ButtonPressed
+            mov.w #REDCOUNT, R14    ;load loop counter (R14) with red loop count
+            bit.b #DIRPORT, &P2OUT
+            jnz SetDirectionLow
+            
+SetDirectionHigh
+            bis.b #DIRPORT, &P2OUT     ; Send high to step port
+            jmp RedLoop
+            
+SetDirectionLow
+            bic.b #DIRPORT, &P2OUT     ; Send low to step port
+            
+RedLoop  
+            call #Time_Delay            ; delay timer subroutine call
+            bis.b #STEPPORT, &P2OUT     ; Send High to step port
+            call #Time_Delay            ; delay timer subroutine call
+            bic.b #STEPPORT, &P2OUT     ; Send low to step port
+            
+            dec R14               ; decrement loop counter
+            jnz RedLoop           ; if not zero, continue through loop
+            
+            mov.b       #PUSHBUTTON, &P1OUT     ; reset push button status
+             
+ButtonNotPressed
+            bic.b #REDLED, &P1OUT       ; clear bit to ensure red LED is off
+            bic.b #STEPPORT, &P2OUT     ; clear number of steps
+            
+Done        jmp     Mainloop           ; now repeat 
+                                       ; starting again at Mainloop
+;-------------------------------------------------------------------------------
+;           End of main code
+;-------------------------------------------------------------------------------                                            
+                                           
+;-------------------------------------------------------------------------------
+;           Subroutines
+;------------------------------------------------------------------------------- 
+
+;-------------------------------------------------------------------------------
+; Time_Delay
+;  passed in - nothing
+;  returned - nothing
+;  accomplishes - time delay
+;  uses: R15
+;-------------------------------------------------------------------------------
+Time_Delay
+    push R15   ;  save R15 since we use it here
+DelayTop
+    mov #DELAY_TIMER, R15  ;load loop counter (R15) with time constant
+Loop1
+    dec R15               ; decrement loop counter
+    jnz Loop1             ; Zero yet?, no decrement again
+
+    pop R15     ; restore R15 before returning
+    ret         ; return
+;-------------------------------------------------------------------------------
+;  end of Time_Delay
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+;           End of all Subroutines
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+;           Interrupt Vectors
+;-------------------------------------------------------------------------------
+            ORG     0xFFFE           ; MSP430 RESET Vector
+            DW      RESET            ; establishes the label RESET as 
+                                     ; the starting point
+            END                      ; END of all code for this program
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------

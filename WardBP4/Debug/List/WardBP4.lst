@@ -1,0 +1,1284 @@
+###############################################################################
+#                                                                             #
+#     IAR Assembler V6.50.1.967/W32  for MSP430 13/Nov/2018  19:41:17         #
+#     Copyright 1996-2016 IAR Systems AB.                                     #
+#                                                                             #
+#           Target option =  MSP430                                           #
+#           Source file   =  C:\Users\PikesPlace\Google Drive\TTU\Fall 2018\Microcontrollers\WardBP4\WardBP4.s43#
+#           List file     =  C:\Users\PikesPlace\Google Drive\TTU\Fall 2018\Microcontrollers\WardBP4\Debug\List\WardBP4.lst#
+#           Object file   =  C:\Users\PikesPlace\Google Drive\TTU\Fall 2018\Microcontrollers\WardBP4\Debug\Obj\WardBP4.r43#
+#           Command line  =  C:\Users\PikesPlace\Google Drive\TTU\Fall 2018\Microcontrollers\WardBP4\WardBP4.s43 #
+#                            -OC:\Users\PikesPlace\Google Drive\TTU\Fall 2018\Microcontrollers\WardBP4\Debug\Obj #
+#                            -s+ -M<> -w+                                     #
+#                            -LC:\Users\PikesPlace\Google Drive\TTU\Fall 2018\Microcontrollers\WardBP4\Debug\List #
+#                            -t8 -x -r -D__MSP430G2553__                      #
+#                            -IC:\Program Files (x86)\IAR Systems\Embedded Workbench 7.4\430\INC\ #
+#                                                                             #
+###############################################################################
+
+      1    000200              ;-----------------------------------------------
+                               --------------------------------
+      2    000200              ;       ECE 3362-002 Project 4 - 4 digit 7
+                                segment display digital thermometer program
+      3    000200              ;                This program utilizes the 4
+                                digit 7 segment expansion board
+      4    000200              ;                from the previous projects and
+                                in this project is used to
+      5    000200              ;                display a temperature reading
+                                from a sensor on the microcontroller
+      6    000200              ;                in either farenheit or celsius.
+                                The ADC10 will poll about every
+      7    000200              ;                half second and the reading
+                                from the temp sensor will be 
+      8    000200              ;                converted using subroutines
+                                provided from Texas Instruments.
+      9    000200              ;                The value will then be
+                                converted to a BCD value and then
+     10    000200              ;                outputted to the digital using
+                                DisplayValue. If the rightmost
+     11    000200              ;                button is pressed, the
+                                temperature suffix will change to either
+     12    000200              ;                C or F with the value swapping
+                                to the correct one.
+     13    000200              ;                     
+     14    000200              ;       Purpose: This program is designed to
+                                introduce the student into the usage
+     15    000200              ;                of the 10-bit analog to digital
+                                converter by using the temp sensor
+     16    000200              ;                and some subroutines provided
+                                by TI to convert the digital value
+     17    000200              ;                into an accurate temperature
+                                value
+     18    000200              ;
+     19    000200              ;       Target:  TI LaunchPad development board
+                                with MSP430G2553 device with the
+     20    000200              ;                custom Display Board installed
+     21    000200              ;
+     22    000200              ;       Date:           November 13, 2018
+     23    000200              ;       Last Revision:  1.0                     
+                                
+     24    000200              ;       Written by:     Bradley Ward, ECE dept,
+                                Texas Tech University
+     25    000200              ;       Adapted from:   Provided code examples;
+                                Dr. M. Helm, October-November 2018   
+     26    000200              ;                       DemoStopWatchFramework
+     27    000200              ;                       DemoWithADC10TempSensorP
+                               olling
+     28    000200              ;                       DemoPartialSolutionForTe
+                               mperatureW_7_seg
+     29    000200              ;                       TI example code; Texas
+                                Instruments Inc.
+     30    000200              ;       Assembler/IDE:  IAR Embedded Workbench
+                                6.5
+     31    000200              ;
+     32    000200              ;       HW I/O assignments:
+     33    000200              ;       P1.0    (output) Segment A (active low)
+                                drives display board
+     34    000200              ;       P1.1    (output) Segment B (active low)
+                                drives display board
+     35    000200              ;       P1.2    (output) Segment C (active low)
+                                drives display board
+     36    000200              ;       P1.3    (output) Segment D (active low)
+                                drives display board
+     37    000200              ;       P1.4    (output) Segment E (active low)
+                                drives display board
+     38    000200              ;       P1.5    (output) Segment F (active low)
+                                drives display board
+     39    000200              ;       P1.6    (output) Segment G (active low)
+                                drives display board
+     40    000200              ;       P1.7    (output) Segment DP (active low)
+                                drives display board
+     41    000200              ;
+     42    000200              ;       P2.0    (output) Digit 3 (active low)
+                                MSdigit (leftmost)
+     43    000200              ;       P2.1    (output) Digit 2 (active low) 
+                                
+     44    000200              ;       P2.2    (output) Digit 1 (active low) 
+                                
+     45    000200              ;       P2.3    (output) Digit 0 (active low)
+                                LSdigit (rightmost)
+     46    000200              ;       P2.4    (output) Other - (dots -
+                                colon)
+     47    000200              ;       P2.5    (input)  Pushbutton 0 (active
+                                low) (rightmost)
+     48    000200              ;       P2.6    (input)  Pushbutton 1 (active
+                                low) (leftmost)
+     49    000200              ;       P2.7    (input)  Pushbutton 2 (active
+                                low) (middle)
+     50    000200              ;
+     51    000200              ;
+     52    000200              ;
+     53    000200              ;***********************************************
+                               ********************************
+     54    000200              #include  "msp430g2553.h"
+     55    000200              ;-----------------------------------------------
+                               --------------------------------
+     56    000200              ; Definition of Constants
+     57    000200              ;-----------------------------------------------
+                               --------------------------------
+     58    000200              
+     59    00FFFF              LONG_DELAY      EQU     65535  ; max 16 bit
+                                value (FFFFh)
+     60    000032              DISPLAY_DELAY   EQU     50 ;
+     61    000200              
+     62    000200              
+     63    0007D0              TIMER_A0_COUNT_1   EQU   2000    ; set count
+                                value for TimerA_0  
+     64    000200              ;results in a 2 mS interrupt rate for updating
+                                each digit position in the
+     65    000200              ; display based on 1 MHz SMCLK/1 and counting
+                                2000 of the 1 uS clock events
+     66    000200              
+     67    000200              
+     68    000001              SEG_A         EQU     %00000001 ; Port pin
+                                position P1.0
+     69    000002              SEG_B         EQU     %00000010 ; Port pin
+                                position P1.1
+     70    000004              SEG_C         EQU     %00000100 ; Port pin
+                                position P1.2
+     71    000008              SEG_D         EQU     %00001000 ; Port pin
+                                position P1.3
+     72    000010              SEG_E         EQU     %00010000 ; Port pin
+                                position P1.4
+     73    000020              SEG_F         EQU     %00100000 ; Port pin
+                                position P1.5
+     74    000040              SEG_G         EQU     %01000000 ; Port pin
+                                position P1.6
+     75    000080              SEG_DP        EQU     %10000000 ; Port pin
+                                position P1.7
+     76    000200              
+     77    000200              ;since inverted pattern is needed for the
+                                display, this defines inverse pattern
+     78    FFFFFE              SEG_A_N       EQU     ~SEG_A ; Port pin position
+                                P1.0
+     79    FFFFFD              SEG_B_N       EQU     ~SEG_B ; Port pin position
+                                P1.1
+     80    FFFFFB              SEG_C_N       EQU     ~SEG_C ; Port pin position
+                                P1.2
+     81    FFFFF7              SEG_D_N       EQU     ~SEG_D ; Port pin position
+                                P1.3
+     82    FFFFEF              SEG_E_N       EQU     ~SEG_E ; Port pin position
+                                P1.4
+     83    FFFFDF              SEG_F_N       EQU     ~SEG_F ; Port pin position
+                                P1.5
+     84    FFFFBF              SEG_G_N       EQU     ~SEG_G ; Port pin position
+                                P1.6
+     85    FFFF7F              SEG_DP_N      EQU     ~SEG_DP ; Port pin
+                                position P1.7
+     86    000200              
+     87    000200              ;NOTE: display board requires INVERSE of these
+                                patterns due to Active LOW
+     88    000001              DIG_3         EQU     %00000001 ; Port pin
+                                position P2.0 (MSdigit)
+     89    000002              DIG_2         EQU     %00000010 ; Port pin
+                                position P2.1
+     90    000004              DIG_1         EQU     %00000100 ; Port pin
+                                position P2.2
+     91    000008              DIG_0         EQU     %00001000 ; Port pin
+                                position P2.3(LSdigit)
+     92    000010              COL_DG_COM    EQU     %00010000 ; Port pin
+                                position P2.4
+     93    000200              
+     94    000200              ;since inverted pattern is needed for the
+                                display, this defines inverse pattern
+     95    FFFFFE              DIG_3_N       EQU     ~DIG_3 ; Port pin position
+                                P2.0 (MSdigit)
+     96    FFFFFD              DIG_2_N       EQU     ~DIG_2 ; Port pin position
+                                P2.1
+     97    FFFFFB              DIG_1_N       EQU     ~DIG_1 ; Port pin position
+                                P2.2
+     98    FFFFF7              DIG_0_N       EQU     ~DIG_0 ; Port pin position
+                                P2.3(LSdigit)
+     99    FFFFEF              COL_DG_COM_N  EQU     ~COL_DG_COM ; Port pin
+                                position P2.4
+    100    000200              
+    101    000200              
+    102    000200              ;Pushbutton assignments CORRECTED to compensate
+                                for board layout swap
+    103    000020              PB_0         EQU     %00100000 ; Port pin
+                                position P2.5  RightMost button
+    104    000080              PB_1         EQU     %10000000 ; Port pin
+                                position P2.7  Middle button
+    105    000040              PB_2         EQU     %01000000 ; Port pin
+                                position P2.6  LeftMost button
+    106    000200              
+    107    000200              
+    108    000021              SEG_PORT         EQU     P1OUT
+    109    000029              DIG_PORT         EQU     P2OUT
+    110    000028              PB_PORT          EQU     P2IN
+    111    000200              
+    112    000200              ;NOTE: display bd requires the INVERSE of these
+                                patterns due to Active LOW
+    113    000006              ONE             EQU     %00000110
+    114    00005B              TWO             EQU     %01011011
+    115    00004F              THREE           EQU     %01001111
+    116    000066              FOUR            EQU     %01100110
+    117    00006D              FIVE            EQU     %01101101
+    118    00007D              SIX             EQU     %01111101
+    119    000007              SEVEN           EQU     %00000111
+    120    00007F              EIGHT           EQU     %01111111
+    121    000067              NINE            EQU     %01100111
+    122    00003F              ZERO            EQU     %00111111
+    123    000200              
+    124    000200              ;since inverted pattern is needed for the
+                                display, this defines inverse pattern
+    125    FFFFF9              ONE_N           EQU     ~%00000110
+    126    FFFFA4              TWO_N           EQU     ~%01011011
+    127    FFFFB0              THREE_N         EQU     ~%01001111
+    128    FFFF99              FOUR_N          EQU     ~%01100110
+    129    FFFF92              FIVE_N          EQU     ~%01101101
+    130    FFFF82              SIX_N           EQU     ~%01111101
+    131    FFFFF8              SEVEN_N         EQU     ~%00000111
+    132    FFFF80              EIGHT_N         EQU     ~%01111111
+    133    FFFF98              NINE_N          EQU     ~%01100111
+    134    FFFFC0              ZERO_N          EQU     ~%00111111
+    135    FFFFC6              LETTER_C_N      EQU     ~%00111001
+    136    FFFF8E              LETTER_F_N      EQU     ~%01110001
+    137    000200              
+    138    000200              ;-----------------------------------------------
+                               --------------------------------
+    139    000200              ; Definition of Variables
+    140    000200              ;-----------------------------------------------
+                               --------------------------------
+    141    000200              
+    142    000200                          ORG   0200h     ; beginning of RAM
+                                                            space (necessary
+                                                            statement)
+    143    000200                          
+    144    000200 00           CurrentDigitPos  DB  0      ;global variable
+                                                            used by WriteDigitT
+                                                           oDisplay ISR
+    145    000201                                          ; holds digit
+                                position of current digit to write
+    146    000201                                          
+    147    000201 00           CurrentDigitValue DB 0      ;global variable
+                                                            used by WriteDigitT
+                                                           oDisplay ISR
+    148    000202                                          ; holds digit value
+                                of next digit to write      
+    149    000202                                          
+    150    000202 0000         DisplayValue  DW  0         ; contains 4 digit
+                                                            value to display in
+                                                            BCD format
+    151    000204                                          ; BCDdig3 | BCDdig2 
+                                | BCDdig1  | BCDdig0
+    152    000204                                          ; xxxx      xxxx    
+                                  xxxx       xxxx          
+    153    000204                                          
+    154    000204 0100         FTempBool       DW  1       ; boolean value for
+                                                            farenheit
+    155    000206 0000         CTempBool       DW  0       ; boolean value for
+                                                            celsius    
+                                                            
+    156    000208 0100         ColonTestBool   DW  1       ; boolean value for
+                                                            degree point
+    157    00020A              ;-----------------------------------------------
+                               --------------------------------
+    158    00C000                          ORG     0C000h                  ;
+  Program Reset (prog memory start)
+    159    00C000                                                          ;
+                                this is Program memory start 
+    160    00C000                                                          ;
+                                address for MSP430G2553 (16K)
+    161    00C000              ;-----------------------------------------------
+                               --------------------------------
+    162    00C000              
+    163    00C000 31400004     RESET       mov.w   #0400h,SP        ;
+                                                                     Initialize
+                                                                     stackpoint
+                                                                    er(to end
+                                                                     of RAM
+                                                                     +1)
+    164    00C004                                                   ; RAM is
+                                512 bytes, last position is 3FFh
+    165    00C004                                                   
+    166    00C004 B240805A2001 StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL  ;
+  Stop WDT
+    167    00C00A              
+    168    00C00A F2432200     SetupP1     mov.b   #0FFh, &P1DIR  ; all as
+                                                                   outputs
+                                                                   (using 4-dig
+                                                                   bd)         
+                                                                   
+    169    00C00E                         
+    170    00C00E F2401F002A00 SetupP2     mov.b    #01Fh, &P2DIR ; all but 3
+                                                                   MSbits as
+                                                                   outputs
+                                                                   (using 4-dig
+                                                                   bd) 
+                                                                   
+    171    00C014              
+    172    00C014              ; activate the General Purpose Digital I/O mode
+                                for P2.6 and P2.7
+    173    00C014 F2C0C0002E00            bic.b   #PB_1+PB_2, &P2SEL
+    174    00C01A                         
+    175    00C01A                         ; The PushButtons are wired to
+                                P2.5,6,7 (active LOW), so we need to 
+                                
+    176    00C01A                         ; turn on the internal Pullup
+                                Resistors  - this is done with P2REN
+    177    00C01A                         ; register           
+    178    00C01A F240E0002F00            mov.b    #PB_0+PB_1+PB_2, &P2REN   
+                                                          ;turn on the internal
+                                                          resistor
+    179    00C020 F240E0002900            mov.b    #PB_0+PB_1+PB_2, &P2OUT    ;
+                                                          set the resistor to
+                                                          Pullup mode
+    180    00C026                         
+    181    00C026                         ; turn off all the segments and
+                                digits
+    182    00C026 F2432100                mov.b #0FFh, &SEG_PORT
+    183    00C02A F2432900                mov.b #0FFh, &DIG_PORT  
+    184    00C02E                         
+    185    00C02E                         ;setup Port 2 interrupts for the
+                                pushbutton
+    186    00C02E F2D0E0002D00            bis.b   #PB_0+PB_1+PB_2, &P2IE    ;
+                                                         enable interrput for
+                                                         Pushbutton
+    187    00C034 F2D0E0002C00            bis.b   #PB_0+PB_1+PB_2, &P2IES   ;
+                                                         set edge select for
+                                                         high to low trans
+    188    00C03A                         
+    189    00C03A C2432B00                clr.b   &P2IFG     ; clear the Int
+                                                              flag register for
+                                                              Port 2          
+                                                              
+    190    00C03E                       
+    191    00C03E                         ; turn off all the segments and
+                                digits
+    192    00C03E F2432100                mov.b #0FFh, &SEG_PORT
+    193    00C042 F2432900                mov.b #0FFh, &DIG_PORT 
+    194    00C046                     
+    195    00C046              ; setup ADC10 and temperature sensor
+    196    00C046              
+    197    00C046 B24060A0B201 SetupADC10  mov.w   #INCH_10+ADC10DIV_3,&ADC10CT
+ L1     ; Temp Sensor ADC10CLK/4
+    198    00C04C B2403838B001             mov.w   #SREF_1+ADC10SHT_3+REFON+ADC
+ 10ON+ADC10IE,&ADC10CTL0 ; 
+    199    00C052              
+    200    00C052              SetupCalibratedClock       
+    201    00C052              ; Set up the clock (calibrated mode at 1
+                                MHz)
+    202    00C052              ; Get the calibrated data for the DCO clock
+    203    00C052              ; Set DCO to 1 MHz:  (this directly from TI
+                                Family Guide page283 and 284
+    204    00C052 C2435600               clr.b &DCOCTL ; Select lowest DCOx 
+                                                        and MODx settings
+    205    00C056 D242FF105700           mov.b &CALBC1_1MHZ,&BCSCTL1 ; Set
+                                                             range
+    206    00C05C D242FE105600           mov.b &CALDCO_1MHZ,&DCOCTL ; Set DCO
+                                                                     step +
+                                                                     modulation
+                                                                     
+                                                                     
+    207    00C062              
+    208    00C062              SetupTimerA
+    209    00C062                          ; these 3 lines of code sets up
+                                TimerA
+    210    00C062                          ; note the difference in register
+                                names
+    211    00C062                          ; this one is set up to provide the
+                                2 mS intervals to update
+    212    00C062                          ; the next digit of the multiplexed
+                                display
+    213    00C062 B240D0077201             mov.w   #TIMER_A0_COUNT_1,&TA0CCR0
+                                                                      ;load a
+                                                                      count
+                                                                      value
+                                                                      into the
+                                                                      counter
+    214    00C068 B24010006201             mov.w   #CCIE,&TA0CCTL0        ;
+  enable the timer interrupt
+    215    00C06E B24010026001             mov.w   #TASSEL_2+ID_0+MC_1,&TA0CTL 
+   ; select SMCLK/1, up mode       
+    216    00C074              
+    217    00C074              ClearInterruptFlags
+    218    00C074 C2432300                clr.b   &P1IFG     ; clear the Int
+                                                              flag register for
+                                                              Port 1 
+    219    00C078 C2432B00                clr.b   &P2IFG     ; clear the Int
+                                                              flag register for
+                                                              Port 2 
+                                                              
+    220    00C07C              
+    221    00C07C              EnableGeneralInterrupts
+    222    00C07C 72D2                     bis.b #GIE,SR          ; enable the
+                                                                   general
+                                                                   interrupts
+                                                                   bit
+    223    00C07E                        
+    224    00C07E               
+    225    00C07E B2D00300B001 Mainloop    bis.w   #ENC+ADC10SC,&ADC10CTL0 ;
+  Start sampling/conversion
+    226    00C084               
+    227    00C084 B01264C1                 call #Delay_Long ; delay for 1/2
+                                                             second
+    228    00C088                          
+    229    00C088 92B3B201     TestBusy    bit   #01h, &ADC10CTL1  ; check the
+                                                                    ADC10BUSY
+                                                                    bit
+                                                                    (LSbit)
+    230    00C08C              
+    231    00C08C FD23                     jne   TestBusy          ; if still
+                                                                    Busy, keep
+                                                                    checking   
+                                                                         
+                                                                    
+    232    00C08E                          
+    233    00C08E              DisplayTempValue
+    234    00C08E 824D0202                 mov.w R13, &DisplayValue ; put
+                                                                     converted
+                                                                     value in
+                                                                     DisplayVal
+                                                                    ue
+    235    00C092              
+    236    00C092 F53F                     jmp Mainloop
+    237    00C094               
+    238    00C094              
+    239    00C094              ;-----------------------------------------------
+                               --------------------------------
+    240    00C094              ;           End of main code
+    241    00C094              ;-----------------------------------------------
+                               --------------------------------                
+                                                           
+    242    00C094                                                        
+                                
+    243    00C094              ;-----------------------------------------------
+                               --------------------------------
+    244    00C094              ;           Subroutines
+    245    00C094              ;-----------------------------------------------
+                               -------------------------------- 
+    246    00C094              
+    247    00C094              ;-----------------------------------------------
+                               --------------------------------
+    248    00C094              ; WriteNextDigitToDisplay
+    249    00C094              ;  passed in - DisplayValue, CurrentDigitPos
+                                
+    250    00C094              ;  returned - nothing
+    251    00C094              ;  accomplishes - Writes next digit to the
+                                expansion bd display
+    252    00C094              ;  uses: R15, global variable CurrentDigitPos,
+                                CurrentDigitValue
+    253    00C094              ; revisions:Mar 29,2018 corrected CurrentDigitPo
+                               s operations (from word to byte)
+    254    00C094              ;-----------------------------------------------
+                               --------------------------------
+    255    00C094              WriteNextDigitToDisplay
+    256    00C094 0F12             push R15     ; save R15 since we use it
+                                                 here
+    257    00C096                  
+    258    00C096              ;following line added to fix "ghosting" problem 
+                                
+    259    00C096 F0D01F008F3F     bis.b #DIG_0+DIG_1+DIG_2+DIG_3+COL_DG_COM,
+                                                 DIG_PORT   ; this turns off
+                                                 any 
+    260    00C09C                                     ;digits that are already
+                                ON
+    261    00C09C                                    ; eliminates the
+                                "ghosting" problem
+    262    00C09C                                    
+    263    00C09C              ; which digit do we write out for this time?  
+                                
+    264    00C09C C2930002         cmp.b #0, &CurrentDigitPos
+    265    00C0A0 1024             jeq  WriteDig0
+    266    00C0A2                  
+    267    00C0A2 D2930002         cmp.b #1, &CurrentDigitPos
+    268    00C0A6 1924             jeq  WriteDig1
+    269    00C0A8                  
+    270    00C0A8 E2930002         cmp.b #2, &CurrentDigitPos
+    271    00C0AC 2624             jeq  WriteDig2
+    272    00C0AE                  
+    273    00C0AE F29003000002     cmp.b #3, &CurrentDigitPos
+    274    00C0B4 2F24             jeq  WriteDig3
+    275    00C0B6                  
+    276    00C0B6 A2920002         cmp   #4, &CurrentDigitPos
+    277    00C0BA 3D24             jeq  TestColon
+    278    00C0BC                  
+    279    00C0BC                  ; invalid case - CurrentDigPos is invalid
+                                value
+    280    00C0BC C2430002         clr.b &CurrentDigitPos   ; reset it
+    281    00C0C0 4F3C             jmp DoneWithDigitWriteTotally  ; get out of
+                                                                   here
+    282    00C0C2                  
+    283    00C0C2              WriteDig0
+    284    00C0C2 1F420202         mov.w &DisplayValue, R15  ; make a
+                                                              copy
+    285    00C0C6 3FF00F00         and.w #0x000F, R15         ; mask out all
+                                                               but Dig
+                                                               0
+    286    00C0CA                  ; use the value in R15 as an offset or index
+                                into SegPatternTable
+    287    00C0CA 3F5000E0         add.w #SegPatternTable, R15  ; R15 now
+                                                                 points to
+                                                                 correct Seg
+                                                                 pattern to
+                                                                 write
+    288    00C0CE E04F513F         mov.b @R15, SEG_PORT       ; set up the
+                                                               pattern to
+                                                               write
+    289    00C0D2 F040F7FF533F     mov.b #DIG_0_N, DIG_PORT
+    290    00C0D8 3B3C             jmp DoneWithDigitWrite
+    291    00C0DA                  
+    292    00C0DA              WriteDig1
+    293    00C0DA 1F420202         mov.w &DisplayValue, R15  ; make a
+                                                              copy
+    294    00C0DE 3FF0F000         and.w #0x00F0, R15         ; mask out all
+                                                               but Dig
+                                                               1
+    295    00C0E2 0F11             rra.w R15                     ; get the
+                                                                  value into
+                                                                  LSnibble
+                                                                  position
+    296    00C0E4 0F11             rra.w R15
+    297    00C0E6 0F11             rra.w R15
+    298    00C0E8 0F11             rra.w R15
+    299    00C0EA                  ; use the value in R15 as an offset or index
+                                into SegPatternTable
+    300    00C0EA 3F5000E0         add.w #SegPatternTable, R15  ; R15 now
+                                                                 points to
+                                                                 correct Seg
+                                                                 pattern to
+                                                                 write
+    301    00C0EE E04F313F         mov.b @R15, SEG_PORT       ; set up the
+                                                               pattern to
+                                                               write
+    302    00C0F2 F040FBFF333F     mov.b #DIG_1_N, DIG_PORT
+    303    00C0F8 2B3C             jmp DoneWithDigitWrite
+    304    00C0FA                  
+    305    00C0FA              WriteDig2
+    306    00C0FA 1F420202         mov.w &DisplayValue, R15  ; make a
+                                                              copy
+    307    00C0FE 3FF0000F         and.w #0x0F00, R15         ; mask out all
+                                                               but Dig
+                                                               2
+    308    00C102 8F10             swpb R15                    ; get the value
+                                                                into LSnibble
+                                                                position
+    309    00C104                  ; use the value in R15 as an offset or index
+                                into SegPatternTable
+    310    00C104 3F5000E0         add.w #SegPatternTable, R15  ; R15 now
+                                                                 points to
+                                                                 correct Seg
+                                                                 pattern to
+                                                                 write
+    311    00C108 E04F173F         mov.b @R15, SEG_PORT       ; set up the
+                                                               pattern to
+                                                               write
+    312    00C10C F040FDFF193F     mov.b #DIG_2_N, DIG_PORT
+    313    00C112 1E3C             jmp DoneWithDigitWrite
+    314    00C114                  
+    315    00C114              WriteDig3
+    316    00C114 1F420202         mov.w &DisplayValue, R15  ; make a
+                                                              copy
+    317    00C118 3FF000F0         and.w #0xF000, R15         ; mask out all
+                                                               but Dig
+                                                               3
+    318    00C11C 8F10             swpb R15
+    319    00C11E 0F11             rra.w R15                     ; get the
+                                                                  value into
+                                                                  LSnibble
+                                                                  position
+    320    00C120 0F11             rra.w R15
+    321    00C122 0F11             rra.w R15
+    322    00C124 0F11             rra.w R15    
+    323    00C126                  ; use the value in R15 as an offset or index
+                                into SegPatternTable
+    324    00C126 3F5000E0         add.w #SegPatternTable, R15  ; R15 now
+                                                                 points to
+                                                                 correct Seg
+                                                                 pattern to
+                                                                 write
+    325    00C12A E04FF53E         mov.b @R15, SEG_PORT       ; set up the
+                                                               pattern to
+                                                               write
+    326    00C12E F040FEFFF73E     mov.b #DIG_3_N, DIG_PORT
+    327    00C134 0D3C             jmp DoneWithDigitWrite    
+    328    00C136                  
+    329    00C136              TestColon
+    330    00C136 F0D3F13E         bis.b #0xFF, DIG_PORT       ; clear out the
+                                                                digit
+                                                                port
+    331    00C13A 9093CC40         cmp #0x01, ColonTestBool    ; check to see
+                                                                if test
+                                                                register was
+                                                                set
+    332    00C13E 0124             jeq WriteColon              ; if so then
+                                                                draw colon
+    333    00C140 073C             jmp DoneWithDigitWrite      ; if not, then
+                                                                finish
+                                                                drawing
+    334    00C142                  
+    335    00C142              WriteColon
+    336    00C142 F0400300DB3E     mov.b #0x03, SEG_PORT       ; move to colon
+                                                                port
+    337    00C148 F040EFFFDD3E     mov.b #COL_DG_COM_N, DIG_PORT   ; turn on
+                                                                    LEDs for
+                                                                    colon
+    338    00C14E 003C             jmp DoneWithDigitWrite
+    339    00C150              
+    340    00C150              DoneWithDigitWrite
+    341    00C150 D2530002         inc.b &CurrentDigitPos   ; set up for next
+                                                             digit position for
+                                                             next time
+    342    00C154 F29005000002     cmp.b #5, &CurrentDigitPos  ;have we done
+                                                                the last one?,
+                                                                time to start
+                                                                over
+    343    00C15A 0238             jl   DoneWithDigitWriteTotally
+    344    00C15C C2430002         clr.b &CurrentDigitPos   ; reset it if we
+                                                             need to start
+                                                             over
+    345    00C160              DoneWithDigitWriteTotally  
+    346    00C160 3F41             pop R15     ; restore R15 before returning
+    347    00C162 3041             ret         ; return
+    348    00C164              ;-----------------------------------------------
+                               --------------------------------
+    349    00C164              ;  end of WriteNextDigitToDisplay
+    350    00C164              ;-----------------------------------------------
+                               --------------------------------
+    351    00C164              ;-----------------------------------------------
+                               --------------------------------
+    352    00C164              ; Delay_Long
+    353    00C164              ;  passed in - nothing
+    354    00C164              ;  returned - nothing
+    355    00C164              ;  accomplishes - long delay
+    356    00C164              ;  uses: R15
+    357    00C164              ;-----------------------------------------------
+                               --------------------------------
+    358    00C164              Delay_Long
+    359    00C164 0F12             push R15     ; save R15 since we use it
+                                                 here
+    360    00C166              DelayTopL
+    361    00C166 3F43             mov.w #LONG_DELAY, R15     ;load loop
+                                                               counter (R15)
+                                                               with Long Delay
+                                                               constant
+    362    00C168              Loop1Long
+    363    00C168 1F83             dec.w R15                     ; decrement
+                                                                  loop
+                                                                  counter
+    364    00C16A FE23             jnz Loop1Long               ; Zero yet?, no
+                                                                decrement
+                                                                again
+    365    00C16C              
+    366    00C16C 3F41             pop R15     ; restore R15 before returning
+    367    00C16E 3041             ret         ; return
+    368    00C170              ;-----------------------------------------------
+                               --------------------------------
+    369    00C170              ;  end of Delay_Long
+    370    00C170              ;-----------------------------------------------
+                               --------------------------------
+    371    00C170              
+    372    00C170              ; subroutines from TI example code for
+                                temperature issues
+    373    00C170              ;-----------------------------------------------
+                               --------------------------------
+    374    00C170              Trans2TempC;Subroutine coverts R12 = ADC10MEM/10
+                               24*423-278
+    375    00C170              ;           oC = ((x/1024)*1500mV)-986mV)*1/3.55
+                               mV = x*423/1024 - 278
+    376    00C170              ;           Input:  ADC10MEM  0000 - 0FFFh, R11,
+                                R12, R14, R15 working register
+    377    00C170              ;           Output: R12  0000 - 091h
+    378    00C170              ;-----------------------------------------------
+                               --------------------------------
+    379    00C170 1C42B401                 mov.w   &ADC10MEM,R12          
+                                                              ;
+    380    00C174 3B40A701                 mov.w   #423,R11                ;
+  C
+    381    00C178 B012C0C1                 call    #MPYU                  
+  ;
+    382    00C17C 3EC0FF00                 bic.w   #00FFh,R14              ;
+  /1024
+    383    00C180 0E5F                     add.w   R15,R14                
+                                                        ;
+    384    00C182 8E10                     swpb    R14                    
+  ;
+    385    00C184 0E11                     rra.w   R14                    
+  ;
+    386    00C186 0E11                     rra.w   R14                    
+  ;
+    387    00C188 0C4E                     mov.w   R14,R12                
+                                                        ;
+    388    00C18A 3C801601                 sub.w   #278,R12                ;
+  C
+    389    00C18E 3041                     ret                            
+  ;
+    390    00C190                                                         
+                                ;
+    391    00C190              ;-----------------------------------------------
+                               --------------------------------
+    392    00C190              Trans2TempF;Subroutine coverts R12 = ADC10MEM/10
+                               24*761-468
+    393    00C190              ;           oF = ((x/1024)*1500mV)-923mV)*1/1.97
+                               mV = x*761/1024 - 468
+    394    00C190              ;           Input:  ADC10MEM  0000 - 0FFFh, R11,
+                                R12, R14, R15 working register
+    395    00C190              ;           Output: R12  0000 - 0124h
+    396    00C190              ;-----------------------------------------------
+                               --------------------------------
+    397    00C190 1C42B401                 mov.w   &ADC10MEM,R12          
+                                                              ;
+    398    00C194 3B40F902                 mov.w   #761,R11                ;
+  F
+    399    00C198 B012C0C1                 call    #MPYU                  
+  ;
+    400    00C19C 3EC0FF00                 bic.w   #00FFh,R14              ;
+  /1024
+    401    00C1A0 0E5F                     add.w   R15,R14                
+                                                        ;
+    402    00C1A2 8E10                     swpb    R14                    
+  ;
+    403    00C1A4 0E11                     rra.w   R14                    
+  ;
+    404    00C1A6 0E11                     rra.w   R14                    
+  ;
+    405    00C1A8 0C4E                     mov.w   R14,R12                
+                                                        ;
+    406    00C1AA 3C80D401                 sub.w   #468,R12                ;
+  F
+    407    00C1AE 3041                     ret                            
+  ;
+    408    00C1B0                                                         
+                                ;
+    409    00C1B0              ;-----------------------------------------------
+                               --------------------------------
+    410    00C1B0              BIN2BCD4  ; Subroutine converts binary number
+                                R12 -> Packed 4- digit BCD R13
+    411    00C1B0              ;           Input:  R12  0000 - 0FFFh, R15
+                                working register
+    412    00C1B0              ;           Output: R13  0000 - 4095
+    413    00C1B0              ;-----------------------------------------------
+                               --------------------------------
+    414    00C1B0 3F401000                 mov.w   #16,R15                 ;
+  Loop Counter
+    415    00C1B4 0D43                     clr.w   R13                     ; 0
+  -> RESULT LSD
+    416    00C1B6 0C5C         BIN1        rla.w   R12                     ;
+  Binary MSB to carry
+    417    00C1B8 0DAD                     dadd.w  R13,R13                 ;
+                                                        RESULT x2 LSD
+    418    00C1BA 1F83                     dec.w   R15                     ;
+  Through?
+    419    00C1BC FC23                     jnz     BIN1                    ;
+  Not through
+    420    00C1BE 3041                     ret                            
+  ;
+    421    00C1C0                                                         
+                                ;
+    422    00C1C0              ;-----------------------------------------------
+                               --------------------------------
+    423    00C1C0              MPYU   ;    Unsigned Multipy R11 x R12 =
+                                R15|R14
+    424    00C1C0                     ;    Input:  R11, R12 -- R10 and R13 are
+                                working registers
+    425    00C1C0                     ;    Output: R15, R14
+    426    00C1C0              ;-----------------------------------------------
+                               --------------------------------
+    427    00C1C0 0E43                     clr.w   R14                     ; 0
+  -> LSBs result
+    428    00C1C2 0F43                     clr.w   R15                     ; 0
+  -> MSBs result
+    429    00C1C4 0D43         MACU        clr.w   R13                     ;
+  MSBs multiplier
+    430    00C1C6 1A43                     mov.w   #1,R10                  ;
+  bit test register
+    431    00C1C8 0BBA         MPY2        bit.w   R10,R11                 ;
+                                                        test actual bit
+    432    00C1CA 0224                     jz      MPY1                    ; IF
+  0: do nothing
+    433    00C1CC 0E5C                     add.w   R12,R14                 ; IF
+                                                        1: add multiplier to
+                                                        result
+    434    00C1CE 0F6D                     addc.w  R13,R15                
+                                                        ;
+    435    00C1D0 0C5C         MPY1        rla.w   R12                     ;
+  multiplier x 2
+    436    00C1D2 0D6D                     rlc.w   R13                    
+  ;
+    437    00C1D4 0A5A                     rla.w   R10                     ;
+  next bit to test
+    438    00C1D6 F82B                     jnc     MPY2                    ; if
+  bit in carry: finished
+    439    00C1D8 3041                     ret                             ;
+  Return from subroutine
+    440    00C1DA              
+    441    00C1DA              
+    442    00C1DA              
+    443    00C1DA              ;-----------------------------------------------
+                               --------------------------------
+    444    00C1DA              ;           End of all Subroutines
+    445    00C1DA              ;-----------------------------------------------
+                               --------------------------------
+    446    00C1DA              
+    447    00C1DA              
+    448    00C1DA              ;-----------------------------------------------
+                               --------------------------------
+    449    00C1DA              ;          Interrupt Service Routines
+    450    00C1DA              ;-----------------------------------------------
+                               --------------------------------
+    451    00C1DA              
+    452    00C1DA              ; add other ISR's as needed
+    453    00C1DA              
+    454    00C1DA              ;-----------------------------------------------
+                               --------------------------------
+    455    00C1DA              ; Interrupt Service Routine for Timer_A
+                                0
+    456    00C1DA              ;  Passed in: nothing
+    457    00C1DA              ;  Activated every time TimerA_0 times
+                                out
+    458    00C1DA              ;  Used to update the next digit of the
+                                multiplexed display
+    459    00C1DA              ;  Uses: nothing 
+    460    00C1DA              ;  For this example, set up to trigger every 2
+                                mS, results in a total display
+    461    00C1DA              ;  update every 8 mS with no flicker
+    462    00C1DA              ;-----------------------------------------------
+                               --------------------------------
+    463    00C1DA              
+    464    00C1DA              TA0_ISR
+    465    00C1DA B01294C0                call #WriteNextDigitToDisplay
+    466    00C1DE                         
+    467    00C1DE 0013                    reti    ; return from interrupt
+    468    00C1E0              
+    469    00C1E0              ;-----------------------------------------------
+                               --------------------------------
+    470    00C1E0              ;  end of TA0_ISR   Timer_A 0 Interrupt Service
+                                Routine
+    471    00C1E0              ;-----------------------------------------------
+                               --------------------------------
+    472    00C1E0              
+    473    00C1E0              
+    474    00C1E0              
+    475    00C1E0              ;-----------------------------------------------
+                               --------------------------------
+    476    00C1E0              ; Port2_ISR
+    477    00C1E0              ;  passed in - FTempBool, CTempBool
+    478    00C1E0              ;  returned - nothing
+    479    00C1E0              ;  accomplishes - updates global Boolean
+                                variables for Pushbutton status and
+    480    00C1E0              ;                 sets global boolean values for
+                                temperature suffix on display
+    481    00C1E0              ;  uses: FTempBool, CTempBool
+    482    00C1E0              ;-----------------------------------------------
+                               --------------------------------
+    483    00C1E0              Port2_ISR 
+    484    00C1E0 F2B020002B00     bit.b  #PB_0, &P2IFG   ; PB_0 Pushbutton? 
+                                                           (if 1 it is
+                                                           pressed)
+    485    00C1E6 0C24             jz  DoneWithPort2        ; it is PB_0
+    486    00C1E8              
+    487    00C1E8 92930402         cmp.w #0x0001, &FTempBool ; check if
+                                                              FTempBool is
+                                                              true
+    488    00C1EC 0524             jz SetCTemp ; if not, go to SetCTemp
+    489    00C1EE                  
+    490    00C1EE              SetFTemp ; turn on boolean for farenheit display
+                                and off for celsius display
+    491    00C1EE 92430402         mov.w #1, &FTempBool
+    492    00C1F2 82430602         mov.w #0, &CTempBool
+    493    00C1F6 043C             jmp DoneWithPort2
+    494    00C1F8                  
+    495    00C1F8              SetCTemp ; turn off boolean for farenheit
+                                display and on for celsius display
+    496    00C1F8 82430402         mov.w #0, &FTempBool
+    497    00C1FC 92430602         mov.w #1, &CTempBool
+    498    00C200                  
+    499    00C200              DoneWithPort2 
+    500    00C200 C2432B00         clr.b &P2IFG ; clear the flag so system is
+                                                 ready for another interrupt
+    501    00C204 0013             reti         ; return from interrupt
+    502    00C206              ;-----------------------------------------------
+                               --------------------------------
+    503    00C206              ;  end of Port2_ISR
+    504    00C206              ;-----------------------------------------------
+                               --------------------------------
+    505    00C206              
+    506    00C206              ;-----------------------------------------------
+                               --------------------------------
+    507    00C206              ; ADC10_ISR
+    508    00C206              ;  passed in - FTempBool, CTempBool
+    509    00C206              ;  returned - R13
+    510    00C206              ;  accomplishes - ISR runs for each poll that
+                                ADC10 does and converts the value
+    511    00C206              ;                 which is stored in R13 and
+                                returned to the mainLoop so that
+    512    00C206              ;                 it can be stored in DisplayVal
+                               ue
+    513    00C206              ;  uses:  FTempBool, CTempBool, R13
+    514    00C206              ;-----------------------------------------------
+                               --------------------------------
+    515    00C206              ADC10_ISR
+    516    00C206              
+    517    00C206 92930402         cmp.w #0x0001, &FTempBool ; check to see if
+                                                              FTempBool is
+                                                              true
+    518    00C20A 0320             jnz DiplayCTemp ; if not, go to DisplayCTemp
+    519    00C20C                  
+    520    00C20C              DiplayFTemp
+    521    00C20C B01290C1         call #Trans2TempF ; translate ADC10 reading
+                                                      into farenheit
+    522    00C210 023C             jmp MoveValue
+    523    00C212                  
+    524    00C212              DiplayCTemp
+    525    00C212 B01270C1         call #Trans2TempC ; translate ADC10 reading
+                                                      into celsius
+    526    00C216              
+    527    00C216              MoveValue
+    528    00C216 B012B0C1         call #BIN2BCD4 ; convert translated value
+                                                   into binary coded decimal
+    529    00C21A 3DF0FF00         and.w #0x00FF, R13 ; mask out all but Dig
+                                                       3&4
+    530    00C21E 0D5D             rla.w R13  
+    531    00C220 0D5D             rla.w R13
+    532    00C222 0D5D             rla.w R13
+    533    00C224 0D5D             rla.w R13  ; get the values into 0xx0
+                                               position
+    534    00C226                          
+    535    00C226 92930402         cmp.w #0x0001, &FTempBool ; check to see if
+                                                              FTempBool is
+                                                              true
+    536    00C22A 0320             jnz SetCVar ; if not, go to SetCVar
+    537    00C22C                  
+    538    00C22C              SetFVar
+    539    00C22C 3D500B00         add.w #0x000B, R13 ; set suffix temp
+                                                       variable as farenheit
+    540    00C230 023C             jmp DoneWithADC10
+    541    00C232                          
+    542    00C232              SetCVar
+    543    00C232 3D500A00         add.w #0x000A, R13 ; set suffix temp
+                                                       variable as celsius
+    544    00C236              
+    545    00C236              DoneWithADC10
+    546    00C236 C2430400         clr.b &ADC10IFG ; clear the flag so system
+                                                    is ready for another
+                                                    interrupt
+    547    00C23A 0013             reti         ; return from interrupt
+    548    00C23C              ;-----------------------------------------------
+                               --------------------------------
+    549    00C23C              ;  end of ADC10_ISR
+    550    00C23C              ;-----------------------------------------------
+                               --------------------------------
+    551    00C23C              
+    552    00C23C              ;-----------------------------------------------
+                               --------------------------------
+    553    00C23C              ;           End of all Interrupt Service
+                                Routines
+    554    00C23C              ;-----------------------------------------------
+                               --------------------------------
+    555    00C23C              
+    556    00C23C              ;-----------------------------------------------
+                               --------------------------------
+    557    00C23C              ;           Definition of Program Data
+                                Memory
+    558    00C23C              ;-----------------------------------------------
+                               --------------------------------
+    559    00E000                          ORG   0E000h   ; this line not
+                                                           strictly necessary,
+                                                           but does force
+    560    00E000                                          ; the location of
+                                this program memory data - this is
+    561    00E000                                          ; a matter of
+                                convenience  - need to leave enough
+    562    00E000                                          ; space ahead of
+                                Interrupt Vectors for the data that
+    563    00E000                                          ; we are putting
+                                here
+    564    00E000              
+    565    00E000              ; usage: use SegPatternTable as base address,
+                                then offset into table for
+    566    00E000              ; a specific 7-seg number (pattern) to
+                                display
+    567    00E000              SegPatternTable  ; contains patterns for each
+                                7-seg number
+    568    00E000 C0                DB  ZERO_N
+    569    00E001 F9                DB  ONE_N
+    570    00E002 A4                DB  TWO_N
+    571    00E003 B0                DB  THREE_N
+    572    00E004 99                DB  FOUR_N
+    573    00E005 92                DB  FIVE_N
+    574    00E006 82                DB  SIX_N
+    575    00E007 F8                DB  SEVEN_N
+    576    00E008 80                DB  EIGHT_N
+    577    00E009 98                DB  NINE_N
+    578    00E00A C6                DB  LETTER_C_N
+    579    00E00B 8E                DB  LETTER_F_N
+    580    00E00C                   
+    581    00E00C              ; usage: use DigitPatternTable as base address,
+                                then offset into table for
+    582    00E00C              ; a specific digit position to display
+    583    00E00C              DigitPatternTable  ; contains patterns for each
+                                digit position common selection
+    584    00E00C F7                DB  DIG_0_N
+    585    00E00D FB                DB  DIG_1_N
+    586    00E00E FD                DB  DIG_2_N
+    587    00E00F FE                DB  DIG_3_N
+    588    00E010 EF                DB  COL_DG_COM_N
+    589    00E011              
+    590    00E011              
+    591    00E011               
+    592    00E011              
+    593    00E011              ;-----------------------------------------------
+                               --------------------------------
+    594    00E011              ;           Interrupt Vectors
+    595    00E011              ;-----------------------------------------------
+                               --------------------------------
+    596    00E011              
+    597    00FFEA                          ORG     0FFEAh                 
+  ;ADC10 Vector
+    598    00FFEA 06C2                     DW      ADC10_ISR              
+                                                     ;ADC10 Interrupt Service
+                                                     Routine 
+    599    00FFEC              
+    600    00FFF2                          ORG     0FFF2h                 
+  ;TimerA_0 Vector
+    601    00FFF2 DAC1                     DW      TA0_ISR                
+                                                     ;TimerA_0 Interrupt
+                                                     Service Routine
+    602    00FFF4              
+    603    00FFF4              ; establish other interrupt(s) as needed in this
+                                table in appropriate location(s)
+    604    00FFF4                          
+    605    00FFE6                          ORG     0FFE6h                  ;
+  MSP430 Port 2 Interrupt Vector
+    606    00FFE6 E0C1                     DW      Port2_ISR               ;
+                                                     address of Port 2 ISR     
+                                                           
+    607    00FFE8              
+    608    00FFFE                          ORG     0FFFEh                  ;
+  MSP430 RESET Vector
+    609    00FFFE 00C0                     DW      RESET                   ;
+                                                     establishes the label
+                                                     RESET as 
+    610    010000                                                          ;
+                                the starting point
+    611    010000                          END                             ;
+                                END of all code for this program
+
+
+
+Segment             Type 	Mode
+----------------------------------------
+ASEG                CODE  	ABS Org:200 
+
+Label               Mode   Type                   Segment    Value/Offset
+------------------------------------------------------------------------------
+ADC10AE0            ABS    CONST UNTYP.           ASEG       4A 
+ADC10CTL0           ABS    CONST UNTYP.           ASEG       1B0 
+ADC10CTL1           ABS    CONST UNTYP.           ASEG       1B2 
+ADC10DTC0           ABS    CONST UNTYP.           ASEG       48 
+ADC10DTC1           ABS    CONST UNTYP.           ASEG       49 
+ADC10MEM            ABS    CONST UNTYP.           ASEG       1B4 
+ADC10SA             ABS    CONST UNTYP.           ASEG       1BC 
+ADC10_ISR           ABS    CONST UNTYP.           ASEG       C206 
+BCSCTL1             ABS    CONST UNTYP.           ASEG       57 
+BCSCTL2             ABS    CONST UNTYP.           ASEG       58 
+BCSCTL3             ABS    CONST UNTYP.           ASEG       53 
+BIN1                ABS    CONST UNTYP.           ASEG       C1B6 
+BIN2BCD4            ABS    CONST UNTYP.           ASEG       C1B0 
+CACTL1              ABS    CONST UNTYP.           ASEG       59 
+CACTL2              ABS    CONST UNTYP.           ASEG       5A 
+CALBC1_12MHZ        ABS    CONST UNTYP.           ASEG       10FB 
+CALBC1_16MHZ        ABS    CONST UNTYP.           ASEG       10F9 
+CALBC1_1MHZ         ABS    CONST UNTYP.           ASEG       10FF 
+CALBC1_8MHZ         ABS    CONST UNTYP.           ASEG       10FD 
+CALDCO_12MHZ        ABS    CONST UNTYP.           ASEG       10FA 
+CALDCO_16MHZ        ABS    CONST UNTYP.           ASEG       10F8 
+CALDCO_1MHZ         ABS    CONST UNTYP.           ASEG       10FE 
+CALDCO_8MHZ         ABS    CONST UNTYP.           ASEG       10FC 
+CAPD                ABS    CONST UNTYP.           ASEG       5B 
+COL_DG_COM          ABS    CONST UNTYP.           ASEG       10 
+COL_DG_COM_N        ABS    CONST UNTYP.           ASEG       FFFFFFEF 
+CTempBool           ABS    CONST UNTYP.           ASEG       206 
+ClearInterruptFlags ABS    CONST UNTYP.           ASEG       C074 
+ColonTestBool       ABS    CONST UNTYP.           ASEG       208 
+CurrentDigitPos     ABS    CONST UNTYP.           ASEG       200 
+CurrentDigitValue   ABS    CONST UNTYP.           ASEG       201 
+DCOCTL              ABS    CONST UNTYP.           ASEG       56 
+DIG_0               ABS    CONST UNTYP.           ASEG       8 
+DIG_0_N             ABS    CONST UNTYP.           ASEG       FFFFFFF7 
+DIG_1               ABS    CONST UNTYP.           ASEG       4 
+DIG_1_N             ABS    CONST UNTYP.           ASEG       FFFFFFFB 
+DIG_2               ABS    CONST UNTYP.           ASEG       2 
+DIG_2_N             ABS    CONST UNTYP.           ASEG       FFFFFFFD 
+DIG_3               ABS    CONST UNTYP.           ASEG       1 
+DIG_3_N             ABS    CONST UNTYP.           ASEG       FFFFFFFE 
+DIG_PORT            ABS    CONST UNTYP.           ASEG       29 
+DISPLAY_DELAY       ABS    CONST UNTYP.           ASEG       32 
+DelayTopL           ABS    CONST UNTYP.           ASEG       C166 
+Delay_Long          ABS    CONST UNTYP.           ASEG       C164 
+DigitPatternTable   ABS    CONST UNTYP.           ASEG       E00C 
+DiplayCTemp         ABS    CONST UNTYP.           ASEG       C212 
+DiplayFTemp         ABS    CONST UNTYP.           ASEG       C20C 
+DisplayTempValue    ABS    CONST UNTYP.           ASEG       C08E 
+DisplayValue        ABS    CONST UNTYP.           ASEG       202 
+DoneWithADC10       ABS    CONST UNTYP.           ASEG       C236 
+DoneWithDigitWrite  ABS    CONST UNTYP.           ASEG       C150 
+DoneWithDigitWriteTotallyABS    CONST UNTYP.           ASEG       C160 
+DoneWithPort2       ABS    CONST UNTYP.           ASEG       C200 
+EIGHT               ABS    CONST UNTYP.           ASEG       7F 
+EIGHT_N             ABS    CONST UNTYP.           ASEG       FFFFFF80 
+EnableGeneralInterruptsABS    CONST UNTYP.           ASEG       C07C 
+FCTL1               ABS    CONST UNTYP.           ASEG       128 
+FCTL2               ABS    CONST UNTYP.           ASEG       12A 
+FCTL3               ABS    CONST UNTYP.           ASEG       12C 
+FIVE                ABS    CONST UNTYP.           ASEG       6D 
+FIVE_N              ABS    CONST UNTYP.           ASEG       FFFFFF92 
+FOUR                ABS    CONST UNTYP.           ASEG       66 
+FOUR_N              ABS    CONST UNTYP.           ASEG       FFFFFF99 
+FTempBool           ABS    CONST UNTYP.           ASEG       204 
+IE1                 ABS    CONST UNTYP.           ASEG       0 
+IE2                 ABS    CONST UNTYP.           ASEG       1 
+IFG1                ABS    CONST UNTYP.           ASEG       2 
+IFG2                ABS    CONST UNTYP.           ASEG       3 
+LETTER_C_N          ABS    CONST UNTYP.           ASEG       FFFFFFC6 
+LETTER_F_N          ABS    CONST UNTYP.           ASEG       FFFFFF8E 
+LONG_DELAY          ABS    CONST UNTYP.           ASEG       FFFF 
+Loop1Long           ABS    CONST UNTYP.           ASEG       C168 
+MACU                ABS    CONST UNTYP.           ASEG       C1C4 
+MPY1                ABS    CONST UNTYP.           ASEG       C1D0 
+MPY2                ABS    CONST UNTYP.           ASEG       C1C8 
+MPYU                ABS    CONST UNTYP.           ASEG       C1C0 
+Mainloop            ABS    CONST UNTYP.           ASEG       C07E 
+MoveValue           ABS    CONST UNTYP.           ASEG       C216 
+NINE                ABS    CONST UNTYP.           ASEG       67 
+NINE_N              ABS    CONST UNTYP.           ASEG       FFFFFF98 
+ONE                 ABS    CONST UNTYP.           ASEG       6 
+ONE_N               ABS    CONST UNTYP.           ASEG       FFFFFFF9 
+P1DIR               ABS    CONST UNTYP.           ASEG       22 
+P1IE                ABS    CONST UNTYP.           ASEG       25 
+P1IES               ABS    CONST UNTYP.           ASEG       24 
+P1IFG               ABS    CONST UNTYP.           ASEG       23 
+P1IN                ABS    CONST UNTYP.           ASEG       20 
+P1OUT               ABS    CONST UNTYP.           ASEG       21 
+P1REN               ABS    CONST UNTYP.           ASEG       27 
+P1SEL               ABS    CONST UNTYP.           ASEG       26 
+P1SEL2              ABS    CONST UNTYP.           ASEG       41 
+P2DIR               ABS    CONST UNTYP.           ASEG       2A 
+P2IE                ABS    CONST UNTYP.           ASEG       2D 
+P2IES               ABS    CONST UNTYP.           ASEG       2C 
+P2IFG               ABS    CONST UNTYP.           ASEG       2B 
+P2IN                ABS    CONST UNTYP.           ASEG       28 
+P2OUT               ABS    CONST UNTYP.           ASEG       29 
+P2REN               ABS    CONST UNTYP.           ASEG       2F 
+P2SEL               ABS    CONST UNTYP.           ASEG       2E 
+P2SEL2              ABS    CONST UNTYP.           ASEG       42 
+P3DIR               ABS    CONST UNTYP.           ASEG       1A 
+P3IN                ABS    CONST UNTYP.           ASEG       18 
+P3OUT               ABS    CONST UNTYP.           ASEG       19 
+P3REN               ABS    CONST UNTYP.           ASEG       10 
+P3SEL               ABS    CONST UNTYP.           ASEG       1B 
+P3SEL2              ABS    CONST UNTYP.           ASEG       43 
+PB_0                ABS    CONST UNTYP.           ASEG       20 
+PB_1                ABS    CONST UNTYP.           ASEG       80 
+PB_2                ABS    CONST UNTYP.           ASEG       40 
+PB_PORT             ABS    CONST UNTYP.           ASEG       28 
+Port2_ISR           ABS    CONST UNTYP.           ASEG       C1E0 
+RESET               ABS    CONST UNTYP.           ASEG       C000 
+SEG_A               ABS    CONST UNTYP.           ASEG       1 
+SEG_A_N             ABS    CONST UNTYP.           ASEG       FFFFFFFE 
+SEG_B               ABS    CONST UNTYP.           ASEG       2 
+SEG_B_N             ABS    CONST UNTYP.           ASEG       FFFFFFFD 
+SEG_C               ABS    CONST UNTYP.           ASEG       4 
+SEG_C_N             ABS    CONST UNTYP.           ASEG       FFFFFFFB 
+SEG_D               ABS    CONST UNTYP.           ASEG       8 
+SEG_DP              ABS    CONST UNTYP.           ASEG       80 
+SEG_DP_N            ABS    CONST UNTYP.           ASEG       FFFFFF7F 
+SEG_D_N             ABS    CONST UNTYP.           ASEG       FFFFFFF7 
+SEG_E               ABS    CONST UNTYP.           ASEG       10 
+SEG_E_N             ABS    CONST UNTYP.           ASEG       FFFFFFEF 
+SEG_F               ABS    CONST UNTYP.           ASEG       20 
+SEG_F_N             ABS    CONST UNTYP.           ASEG       FFFFFFDF 
+SEG_G               ABS    CONST UNTYP.           ASEG       40 
+SEG_G_N             ABS    CONST UNTYP.           ASEG       FFFFFFBF 
+SEG_PORT            ABS    CONST UNTYP.           ASEG       21 
+SEVEN               ABS    CONST UNTYP.           ASEG       7 
+SEVEN_N             ABS    CONST UNTYP.           ASEG       FFFFFFF8 
+SIX                 ABS    CONST UNTYP.           ASEG       7D 
+SIX_N               ABS    CONST UNTYP.           ASEG       FFFFFF82 
+SegPatternTable     ABS    CONST UNTYP.           ASEG       E000 
+SetCTemp            ABS    CONST UNTYP.           ASEG       C1F8 
+SetCVar             ABS    CONST UNTYP.           ASEG       C232 
+SetFTemp            ABS    CONST UNTYP.           ASEG       C1EE 
+SetFVar             ABS    CONST UNTYP.           ASEG       C22C 
+SetupADC10          ABS    CONST UNTYP.           ASEG       C046 
+SetupCalibratedClockABS    CONST UNTYP.           ASEG       C052 
+SetupP1             ABS    CONST UNTYP.           ASEG       C00A 
+SetupP2             ABS    CONST UNTYP.           ASEG       C00E 
+SetupTimerA         ABS    CONST UNTYP.           ASEG       C062 
+StopWDT             ABS    CONST UNTYP.           ASEG       C004 
+TA0CCR0             ABS    CONST UNTYP.           ASEG       172 
+TA0CCR1             ABS    CONST UNTYP.           ASEG       174 
+TA0CCR2             ABS    CONST UNTYP.           ASEG       176 
+TA0CCTL0            ABS    CONST UNTYP.           ASEG       162 
+TA0CCTL1            ABS    CONST UNTYP.           ASEG       164 
+TA0CCTL2            ABS    CONST UNTYP.           ASEG       166 
+TA0CTL              ABS    CONST UNTYP.           ASEG       160 
+TA0IV               ABS    CONST UNTYP.           ASEG       12E 
+TA0R                ABS    CONST UNTYP.           ASEG       170 
+TA0_ISR             ABS    CONST UNTYP.           ASEG       C1DA 
+TA1CCR0             ABS    CONST UNTYP.           ASEG       192 
+TA1CCR1             ABS    CONST UNTYP.           ASEG       194 
+TA1CCR2             ABS    CONST UNTYP.           ASEG       196 
+TA1CCTL0            ABS    CONST UNTYP.           ASEG       182 
+TA1CCTL1            ABS    CONST UNTYP.           ASEG       184 
+TA1CCTL2            ABS    CONST UNTYP.           ASEG       186 
+TA1CTL              ABS    CONST UNTYP.           ASEG       180 
+TA1IV               ABS    CONST UNTYP.           ASEG       11E 
+TA1R                ABS    CONST UNTYP.           ASEG       190 
+THREE               ABS    CONST UNTYP.           ASEG       4F 
+THREE_N             ABS    CONST UNTYP.           ASEG       FFFFFFB0 
+TIMER_A0_COUNT_1    ABS    CONST UNTYP.           ASEG       7D0 
+TLV_ADC10_1_LEN     ABS    CONST UNTYP.           ASEG       10DB 
+TLV_ADC10_1_TAG     ABS    CONST UNTYP.           ASEG       10DA 
+TLV_CHECKSUM        ABS    CONST UNTYP.           ASEG       10C0 
+TLV_DCO_30_LEN      ABS    CONST UNTYP.           ASEG       10F7 
+TLV_DCO_30_TAG      ABS    CONST UNTYP.           ASEG       10F6 
+TWO                 ABS    CONST UNTYP.           ASEG       5B 
+TWO_N               ABS    CONST UNTYP.           ASEG       FFFFFFA4 
+TestBusy            ABS    CONST UNTYP.           ASEG       C088 
+TestColon           ABS    CONST UNTYP.           ASEG       C136 
+Trans2TempC         ABS    CONST UNTYP.           ASEG       C170 
+Trans2TempF         ABS    CONST UNTYP.           ASEG       C190 
+UCA0ABCTL           ABS    CONST UNTYP.           ASEG       5D 
+UCA0BR0             ABS    CONST UNTYP.           ASEG       62 
+UCA0BR1             ABS    CONST UNTYP.           ASEG       63 
+UCA0CTL0            ABS    CONST UNTYP.           ASEG       60 
+UCA0CTL1            ABS    CONST UNTYP.           ASEG       61 
+UCA0IRRCTL          ABS    CONST UNTYP.           ASEG       5F 
+UCA0IRTCTL          ABS    CONST UNTYP.           ASEG       5E 
+UCA0MCTL            ABS    CONST UNTYP.           ASEG       64 
+UCA0RXBUF           ABS    CONST UNTYP.           ASEG       66 
+UCA0STAT            ABS    CONST UNTYP.           ASEG       65 
+UCA0TXBUF           ABS    CONST UNTYP.           ASEG       67 
+UCB0BR0             ABS    CONST UNTYP.           ASEG       6A 
+UCB0BR1             ABS    CONST UNTYP.           ASEG       6B 
+UCB0CTL0            ABS    CONST UNTYP.           ASEG       68 
+UCB0CTL1            ABS    CONST UNTYP.           ASEG       69 
+UCB0I2CIE           ABS    CONST UNTYP.           ASEG       6C 
+UCB0I2COA           ABS    CONST UNTYP.           ASEG       118 
+UCB0I2CSA           ABS    CONST UNTYP.           ASEG       11A 
+UCB0RXBUF           ABS    CONST UNTYP.           ASEG       6E 
+UCB0STAT            ABS    CONST UNTYP.           ASEG       6D 
+UCB0TXBUF           ABS    CONST UNTYP.           ASEG       6F 
+WDTCTL              ABS    CONST UNTYP.           ASEG       120 
+WriteColon          ABS    CONST UNTYP.           ASEG       C142 
+WriteDig0           ABS    CONST UNTYP.           ASEG       C0C2 
+WriteDig1           ABS    CONST UNTYP.           ASEG       C0DA 
+WriteDig2           ABS    CONST UNTYP.           ASEG       C0FA 
+WriteDig3           ABS    CONST UNTYP.           ASEG       C114 
+WriteNextDigitToDisplayABS    CONST UNTYP.           ASEG       C094 
+ZERO                ABS    CONST UNTYP.           ASEG       3F 
+ZERO_N              ABS    CONST UNTYP.           ASEG       FFFFFFC0 
+
+
+##############################
+#          CRC:6D0A          #
+#        Errors:   0         #
+#        Warnings: 0         #
+#         Bytes: 607         #
+##############################
+
+
+
+
